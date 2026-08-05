@@ -2,7 +2,7 @@
 pdf_generator.py
 Módulo de generación de reportes en PDF (Predicciones del día y Calificación histórica/Report Card)
 utilizando ReportLab con diseño moderno, nombres completos de equipos, logos PNG,
-especificación clara de Over/Under y soporte para partidos pendientes.
+especificación explícita de Over/Under y sugerencia de Hándicap (-1.5 / +1.5).
 """
 
 from __future__ import annotations
@@ -37,8 +37,28 @@ def _team_html(team_name: str, team_abbr: str | None = None, team_id: int | None
 
     clean_path = str(img_path).replace("\\", "/") if img_path else None
     if clean_path:
-        return f'<img src="{clean_path}" width="16" height="16" valign="middle"/> &nbsp;<b>{team_name}</b>'
+        return f'<img src="{clean_path}" width="15" height="15" valign="middle"/> &nbsp;<b>{team_name}</b>'
     return f"<b>{team_name}</b>"
+
+
+def _handicap_suggestion(
+    home_name: str, home_abbr: str | None, home_id: int | None,
+    away_name: str, away_abbr: str | None, away_id: int | None,
+    home_proba: float
+) -> str:
+    """Sugiére hándicap -1.5 para el favorito fuerte (>=58%) o +1.5 para proteger al underdog en juegos apretados."""
+    if home_proba >= 0.58:
+        fav_html = _team_html(home_name, home_abbr, home_id)
+        return f"{fav_html} <font color='#16a34a'><b>-1.5</b></font>"
+    elif home_proba <= 0.42:
+        fav_html = _team_html(away_name, away_abbr, away_id)
+        return f"{fav_html} <font color='#16a34a'><b>-1.5</b></font>"
+    elif home_proba >= 0.50:
+        dog_html = _team_html(away_name, away_abbr, away_id)
+        return f"{dog_html} <font color='#0284c7'><b>+1.5</b></font>"
+    else:
+        dog_html = _team_html(home_name, home_abbr, home_id)
+        return f"{dog_html} <font color='#0284c7'><b>+1.5</b></font>"
 
 
 def _get_custom_styles():
@@ -129,7 +149,6 @@ def build_daily_predictions_pdf(
     st = _get_custom_styles()
     story = []
 
-    # Encabezado principal
     story.append(Paragraph("MLB Predictor - Reporte de Predicciones Diarias", st["title"]))
     story.append(
         Paragraph(
@@ -163,6 +182,7 @@ def build_daily_predictions_pdf(
         Paragraph("Enfrentamiento<br/>(Visitante @ Local)", st["header"]),
         Paragraph("Predicción Favorito", st["header"]),
         Paragraph("Proyección Over / Under<br/>(Línea Carreras)", st["header"]),
+        Paragraph("Sugerencia Hándicap<br/>(Run Line)", st["header"]),
         Paragraph("Abridor Local", st["header"]),
         Paragraph("Abridor Visitante", st["header"]),
     ]
@@ -192,7 +212,7 @@ def build_daily_predictions_pdf(
         fav_team_html = _team_html(fav_name, fav_abbr, fav_id)
         fav_cell_html = f"{fav_team_html}<br/><font color='#0284c7'><b>{fav_proba:.1%} victoria</b></font> (Local: {proba:.1%})"
 
-        # Proyección Over / Under explícita
+        # Over / Under explícito
         total_runs = float(r["total_runs_pred"])
         if total_runs >= 8.75:
             ou_label = f"<font color='#16a34a'><b>OVER</b></font><br/><b>{total_runs:.1f} carreras</b>"
@@ -200,6 +220,13 @@ def build_daily_predictions_pdf(
             ou_label = f"<font color='#dc2626'><b>UNDER</b></font><br/><b>{total_runs:.1f} carreras</b>"
         else:
             ou_label = f"<font color='#0284c7'><b>LÍNEA</b></font><br/><b>{total_runs:.1f} carreras</b>"
+
+        # Sugerencia Hándicap
+        hcap_html = _handicap_suggestion(
+            r["home_name"], r.get("home_abbr"), r.get("home_team_id"),
+            r["away_name"], r.get("away_abbr"), r.get("away_team_id"),
+            proba
+        )
 
         # Abridores
         if pd.notna(r.get("home_abridor_id")) and r.get("home_abridor_id"):
@@ -221,18 +248,20 @@ def build_daily_predictions_pdf(
                 Paragraph(matchup_html, st["cell"]),
                 Paragraph(fav_cell_html, st["cell"]),
                 Paragraph(ou_label, st["cell_center"]),
+                Paragraph(hcap_html, st["cell"]),
                 Paragraph(h_pitcher, st["cell"]),
                 Paragraph(a_pitcher, st["cell"]),
             ]
         )
 
-    # Anchos de columnas (total 10.2 pulgadas en landscape letter)
+    # Anchos de columnas (total 10.2 pulgadas = 734.4 pt)
     col_widths = [
-        2.5 * inch,
-        2.5 * inch,
-        1.6 * inch,
-        1.8 * inch,
-        1.8 * inch,
+        2.1 * inch,
+        2.1 * inch,
+        1.3 * inch,
+        1.7 * inch,
+        1.5 * inch,
+        1.5 * inch,
     ]
 
     table = Table(rows, colWidths=col_widths, repeatRows=1)
@@ -242,8 +271,8 @@ def build_daily_predictions_pdf(
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
         ("TOPPADDING", (0, 0), (-1, -1), 5),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
         (
             "ROWBACKGROUNDS",
             (0, 1),
@@ -280,7 +309,6 @@ def build_report_card_pdf(
     st = _get_custom_styles()
     story = []
 
-    # Encabezado principal
     story.append(Paragraph("MLB Predictor - Evaluación de Resultados (Report Card)", st["title"]))
     story.append(
         Paragraph(
@@ -302,7 +330,6 @@ def build_report_card_pdf(
     # --- Sección 1: Cuadro del Día ---
     story.append(Paragraph(f"Resumen del Día: {target_date}", st["h2"]))
 
-    # Filtrar solo finalizados para métricas
     finalized_daily = daily_df[daily_df["is_final"] == True] if not daily_df.empty and "is_final" in daily_df.columns else daily_df
     from report_card import summarize
 
@@ -371,6 +398,7 @@ def _build_results_table(df: pd.DataFrame, st: dict) -> Table:
     headers = [
         Paragraph("Enfrentamiento (V @ L)", st["header"]),
         Paragraph("Predicción Favorito", st["header"]),
+        Paragraph("Sugerencia Hándicap", st["header"]),
         Paragraph("Marcador Real (V-L)", st["header"]),
         Paragraph("Ganador Real", st["header"]),
         Paragraph("¿Acierto?", st["header"]),
@@ -384,6 +412,7 @@ def _build_results_table(df: pd.DataFrame, st: dict) -> Table:
         ordered = df.sort_values("game_date_utc", ascending=True)
     else:
         ordered = df.sort_values("game_date", ascending=True)
+
     for _, r in ordered.iterrows():
         is_final = bool(r.get("is_final", True))
 
@@ -395,6 +424,13 @@ def _build_results_table(df: pd.DataFrame, st: dict) -> Table:
         pred_fav_abbr = r.get("predicted_winner_abbr")
         pred_fav_html = _team_html(pred_fav_name, pred_fav_abbr)
         pred_cell = f"{pred_fav_html}<br/><font color='#0284c7'><b>{r['favorito_proba']:.0%}</b></font>"
+
+        # Sugerencia de Hándicap
+        hcap_html = _handicap_suggestion(
+            r["home_name"], r.get("home_abbr"), r.get("home_team_id"),
+            r["away_name"], r.get("away_abbr"), r.get("away_team_id"),
+            float(r["home_win_proba"])
+        )
 
         if is_final:
             score = f"<b>{int(r['away_score'])}-{int(r['home_score'])}</b>"
@@ -412,7 +448,6 @@ def _build_results_table(df: pd.DataFrame, st: dict) -> Table:
             else:
                 ou_comp = f"<font color='#0284c7'><b>IGUAL ({diff:+.1f})</b></font>"
         else:
-            # Partido pendiente o en juego
             status_text = r.get("status") or "Scheduled"
             if pd.notna(r.get("away_score")) and pd.notna(r.get("home_score")):
                 score = f"{int(r['away_score'])}-{int(r['home_score'])}<br/><font color='#d97706'>({status_text})</font>"
@@ -429,6 +464,7 @@ def _build_results_table(df: pd.DataFrame, st: dict) -> Table:
             [
                 Paragraph(matchup, st["cell"]),
                 Paragraph(pred_cell, st["cell"]),
+                Paragraph(hcap_html, st["cell"]),
                 Paragraph(score, st["cell_center"]),
                 Paragraph(actual_fav_html, st["cell"]),
                 Paragraph(hit_html, st["cell_center"]),
@@ -440,14 +476,15 @@ def _build_results_table(df: pd.DataFrame, st: dict) -> Table:
 
     # Ancho total: 10.2 pulgadas = 734.4 pt
     col_widths = [
-        2.2 * inch,
-        2.0 * inch,
-        1.1 * inch,
-        1.7 * inch,
+        1.9 * inch,
+        1.6 * inch,
+        1.5 * inch,
+        0.9 * inch,
+        1.4 * inch,
+        0.7 * inch,
+        0.7 * inch,
+        0.7 * inch,
         0.8 * inch,
-        0.7 * inch,
-        0.7 * inch,
-        1.0 * inch,
     ]
 
     table = Table(rows, colWidths=col_widths, repeatRows=1)
@@ -457,8 +494,8 @@ def _build_results_table(df: pd.DataFrame, st: dict) -> Table:
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
         ("TOPPADDING", (0, 0), (-1, -1), 5),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ("LEFTPADDING", (0, 0), (-1, -1), 5),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
         (
             "ROWBACKGROUNDS",
             (0, 1),
