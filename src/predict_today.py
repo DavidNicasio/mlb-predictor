@@ -32,7 +32,7 @@ def team_info(conn, team_id) -> tuple[str, str]:
     return (row[0], row[1]) if row else (f"Team {team_id}", "?")
 
 
-TEXT_COLUMNS = {"game_date", "status", "home_abridor_throws", "away_abridor_throws"}
+TEXT_COLUMNS = {"game_date", "game_date_utc", "status", "home_abridor_throws", "away_abridor_throws"}
 
 
 def _coerce_numeric(df: pd.DataFrame) -> pd.DataFrame:
