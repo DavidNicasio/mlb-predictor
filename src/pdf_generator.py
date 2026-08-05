@@ -41,6 +41,16 @@ def _team_html(team_name: str, team_abbr: str | None = None, team_id: int | None
     return f"<b>{team_name}</b>"
 
 
+def _ou_html(total_runs: float) -> str:
+    """Formatea la predicción Over/Under con etiqueta y color explícito."""
+    if total_runs >= 8.75:
+        return f"<font color='#16a34a'><b>OVER</b></font><br/><b>{total_runs:.1f} carreras</b>"
+    elif total_runs <= 8.25:
+        return f"<font color='#dc2626'><b>UNDER</b></font><br/><b>{total_runs:.1f} carreras</b>"
+    else:
+        return f"<font color='#0284c7'><b>LÍNEA</b></font><br/><b>{total_runs:.1f} carreras</b>"
+
+
 def _handicap_suggestion(
     home_name: str, home_abbr: str | None, home_id: int | None,
     away_name: str, away_abbr: str | None, away_id: int | None,
@@ -213,13 +223,7 @@ def build_daily_predictions_pdf(
         fav_cell_html = f"{fav_team_html}<br/><font color='#0284c7'><b>{fav_proba:.1%} victoria</b></font> (Local: {proba:.1%})"
 
         # Over / Under explícito
-        total_runs = float(r["total_runs_pred"])
-        if total_runs >= 8.75:
-            ou_label = f"<font color='#16a34a'><b>OVER</b></font><br/><b>{total_runs:.1f} carreras</b>"
-        elif total_runs <= 8.25:
-            ou_label = f"<font color='#dc2626'><b>UNDER</b></font><br/><b>{total_runs:.1f} carreras</b>"
-        else:
-            ou_label = f"<font color='#0284c7'><b>LÍNEA</b></font><br/><b>{total_runs:.1f} carreras</b>"
+        ou_label = _ou_html(float(r["total_runs_pred"]))
 
         # Sugerencia Hándicap
         hcap_html = _handicap_suggestion(
@@ -254,7 +258,6 @@ def build_daily_predictions_pdf(
             ]
         )
 
-    # Anchos de columnas (total 10.2 pulgadas = 734.4 pt)
     col_widths = [
         2.1 * inch,
         2.1 * inch,
@@ -402,9 +405,9 @@ def _build_results_table(df: pd.DataFrame, st: dict) -> Table:
         Paragraph("Marcador Real (V-L)", st["header"]),
         Paragraph("Ganador Real", st["header"]),
         Paragraph("¿Acierto?", st["header"]),
-        Paragraph("Proy. O/U", st["header"]),
+        Paragraph("Proyección Over / Under", st["header"]),
         Paragraph("Total Real", st["header"]),
-        Paragraph("Comparación O/U", st["header"]),
+        Paragraph("Resultado Real O/U", st["header"]),
     ]
     rows = [headers]
 
@@ -432,6 +435,8 @@ def _build_results_table(df: pd.DataFrame, st: dict) -> Table:
             float(r["home_win_proba"])
         )
 
+        ou_pred = _ou_html(float(r["total_runs_pred"]))
+
         if is_final:
             score = f"<b>{int(r['away_score'])}-{int(r['home_score'])}</b>"
             actual_fav_html = _team_html(r["actual_winner"], r.get("actual_winner_abbr"))
@@ -458,8 +463,6 @@ def _build_results_table(df: pd.DataFrame, st: dict) -> Table:
             total_actual = "<font color='#94a3b8'>-</font>"
             ou_comp = "<font color='#94a3b8'>PENDIENTE</font>"
 
-        ou_pred = f"{r['total_runs_pred']:.1f}"
-
         rows.append(
             [
                 Paragraph(matchup, st["cell"]),
@@ -476,15 +479,15 @@ def _build_results_table(df: pd.DataFrame, st: dict) -> Table:
 
     # Ancho total: 10.2 pulgadas = 734.4 pt
     col_widths = [
-        1.9 * inch,
-        1.6 * inch,
-        1.5 * inch,
-        0.9 * inch,
+        1.7 * inch,
         1.4 * inch,
-        0.7 * inch,
-        0.7 * inch,
-        0.7 * inch,
+        1.4 * inch,
         0.8 * inch,
+        1.4 * inch,
+        0.6 * inch,
+        1.2 * inch,
+        0.6 * inch,
+        1.1 * inch,
     ]
 
     table = Table(rows, colWidths=col_widths, repeatRows=1)
