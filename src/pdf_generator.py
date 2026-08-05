@@ -2,12 +2,13 @@
 pdf_generator.py
 Módulo de generación de reportes en PDF (Predicciones del día y Calificación histórica/Report Card)
 utilizando ReportLab con diseño moderno, nombres completos de equipos, logos PNG,
-especificación explícita de Over/Under, información de Clima/Viento y proyecciones F5.
+especificación estricta de Over/Under (sin LÍNEA), hora de partidos, proyecciones F5,
+filtro metereológico y evaluación de Nivel de Riesgo para apuestas.
 """
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import datetime, date
 from pathlib import Path
 import pandas as pd
 
@@ -41,14 +42,36 @@ def _team_html(team_name: str, team_abbr: str | None = None, team_id: int | None
     return f"<b>{team_name}</b>"
 
 
+def _format_game_time(utc_str: str | None) -> str:
+    """Formatea el timestamp UTC de inicio a la hora local formateada (ej. 06:35 PM)."""
+    if not utc_str or pd.isna(utc_str) or str(utc_str).strip().lower() == "nan":
+        return ""
+    try:
+        clean_utc = str(utc_str).replace("Z", "+00:00")
+        dt = datetime.fromisoformat(clean_utc)
+        local_dt = dt.astimezone()
+        return f"<font color='#64748b'><b>⏰ {local_dt.strftime('%I:%M %p')}</b></font><br/>"
+    except Exception:
+        return ""
+
+
 def _ou_html(total_runs: float) -> str:
-    """Formatea la predicción Over/Under con etiqueta y color explícito."""
-    if total_runs >= 8.75:
+    """Formatea la predicción Over/Under estrictamente como OVER u UNDER (sin LÍNEA)."""
+    if total_runs >= 8.50:
         return f"<font color='#16a34a'><b>OVER</b></font><br/><b>{total_runs:.1f} carreras</b>"
-    elif total_runs <= 8.25:
-        return f"<font color='#dc2626'><b>UNDER</b></font><br/><b>{total_runs:.1f} carreras</b>"
     else:
-        return f"<font color='#0284c7'><b>LÍNEA</b></font><br/><b>{total_runs:.1f} carreras</b>"
+        return f"<font color='#dc2626'><b>UNDER</b></font><br/><b>{total_runs:.1f} carreras</b>"
+
+
+def _risk_level_html(home_win_proba: float) -> str:
+    """Determina el Nivel de Riesgo (Bajo, Medio, Alto) de fallar la predicción."""
+    fav_p = home_win_proba if home_win_proba >= 0.50 else 1.0 - home_win_proba
+    if fav_p >= 0.62:
+        return "<font color='#16a34a'><b>BAJO</b></font>"
+    elif fav_p >= 0.55:
+        return "<font color='#0284c7'><b>MEDIO</b></font>"
+    else:
+        return "<font color='#dc2626'><b>ALTO</b></font>"
 
 
 def _weather_html(temp, wind, condition) -> str:
@@ -83,7 +106,8 @@ def _f5_html(
     fav_id = home_id if f5_home_proba >= 0.50 else away_id
 
     fav_html = _team_html(fav_name, fav_abbr, fav_id)
-    return f"O/U: <b>{f5_runs:.1f}</b><br/>F5: {fav_html}"
+    ou_f5_label = f"<font color='#16a34a'><b>OVER</b></font>" if f5_runs >= 4.50 else f"<font color='#dc2626'><b>UNDER</b></font>"
+    return f"{ou_f5_label} (<b>{f5_runs:.1f}</b>)<br/>F5: {fav_html}"
 
 
 def _get_custom_styles():
@@ -159,7 +183,7 @@ def build_daily_predictions_pdf(
     target_date: str,
     predictions_df: pd.DataFrame,
 ) -> str:
-    """Genera un PDF visual con las predicciones de la fecha especificada."""
+    """Genera un PDF visual limpio con las predicciones de la fecha especificada."""
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
     doc = SimpleDocTemplate(
@@ -202,14 +226,14 @@ def build_daily_predictions_pdf(
         doc.build(story)
         return output_path
 
+    # Cabeceras limpias de 6 columnas
     headers = [
-        Paragraph("Enfrentamiento<br/>(V @ L)", st["header"]),
+        Paragraph("Hora y Enfrentamiento<br/>(Visitante @ Local)", st["header"]),
         Paragraph("Predicción Favorito", st["header"]),
-        Paragraph("Proyección Over / Under<br/>(Línea Carreras)", st["header"]),
+        Paragraph("Proyección Over / Under<br/>(Juego Completo)", st["header"]),
         Paragraph("Primeras 5 Entradas<br/>(F5)", st["header"]),
         Paragraph("Clima / Viento", st["header"]),
-        Paragraph("Abridor Local", st["header"]),
-        Paragraph("Abridor Visitante", st["header"]),
+        Paragraph("Nivel de Riesgo<br/>(Apuestas)", st["header"]),
     ]
     rows = [headers]
 
@@ -227,15 +251,20 @@ def build_daily_predictions_pdf(
         fav_id = r.get("home_team_id") if proba >= 0.5 else r.get("away_team_id")
         fav_proba = proba if proba >= 0.5 else 1.0 - proba
 
+        # Hora + Nombres completos con logos
+        time_html = _format_game_time(r.get("game_date_utc"))
         home_html = _team_html(r["home_name"], r.get("home_abbr"), r.get("home_team_id"))
         away_html = _team_html(r["away_name"], r.get("away_abbr"), r.get("away_team_id"))
-        matchup_html = f"{away_html}<br/><font color='#64748b'><b>@</b></font> {home_html}"
+        matchup_html = f"{time_html}{away_html}<br/><font color='#64748b'><b>@</b></font> {home_html}"
 
+        # Favorito
         fav_team_html = _team_html(fav_name, fav_abbr, fav_id)
         fav_cell_html = f"{fav_team_html}<br/><font color='#0284c7'><b>{fav_proba:.1%} victoria</b></font>"
 
+        # Over / Under explícito (sin LÍNEA)
         ou_label = _ou_html(float(r["total_runs_pred"]))
 
+        # Primeras 5 Entradas
         f5_runs = float(r.get("f5_total_runs_pred", float(r["total_runs_pred"]) * 0.55))
         f5_home_proba = float(r.get("f5_home_win_proba", proba))
         f5_cell = _f5_html(
@@ -244,23 +273,13 @@ def build_daily_predictions_pdf(
             r["away_name"], r.get("away_abbr"), r.get("away_team_id")
         )
 
+        # Clima
         weather_cell = _weather_html(
             r.get("weather_temp"), r.get("weather_wind"), r.get("weather_condition")
         )
 
-        if pd.notna(r.get("home_abridor_id")) and r.get("home_abridor_id"):
-            h_fip = f"{r.get('home_fip'):.2f}" if pd.notna(r.get("home_fip")) else "N/A"
-            h_starts = int(r.get("home_n_starts") or 0)
-            h_pitcher = f"Brazo: {r.get('home_abridor_throws') or '?'}<br/>FIP: <b>{h_fip}</b> ({h_starts} ap.)"
-        else:
-            h_pitcher = "<font color='#94a3b8'><i>Sin confirmar</i></font>"
-
-        if pd.notna(r.get("away_abridor_id")) and r.get("away_abridor_id"):
-            a_fip = f"{r.get('away_fip'):.2f}" if pd.notna(r.get("away_fip")) else "N/A"
-            a_starts = int(r.get("away_n_starts") or 0)
-            a_pitcher = f"Brazo: {r.get('away_abridor_throws') or '?'}<br/>FIP: <b>{a_fip}</b> ({a_starts} ap.)"
-        else:
-            a_pitcher = "<font color='#94a3b8'><i>Sin confirmar</i></font>"
+        # Nivel de Riesgo
+        risk_cell = _risk_level_html(proba)
 
         rows.append(
             [
@@ -269,19 +288,17 @@ def build_daily_predictions_pdf(
                 Paragraph(ou_label, st["cell_center"]),
                 Paragraph(f5_cell, st["cell"]),
                 Paragraph(weather_cell, st["cell_center"]),
-                Paragraph(h_pitcher, st["cell"]),
-                Paragraph(a_pitcher, st["cell"]),
+                Paragraph(risk_cell, st["cell_center"]),
             ]
         )
 
-    # Anchos de columnas (total 10.2 pulgadas = 734.4 pt)
+    # Distribución amplia de 6 columnas (Total: 10.2 in = 734.4 pt)
     col_widths = [
-        2.0 * inch,
-        1.8 * inch,
-        1.3 * inch,
+        2.2 * inch,
+        2.1 * inch,
+        1.5 * inch,
+        1.7 * inch,
         1.4 * inch,
-        1.1 * inch,
-        1.3 * inch,
         1.3 * inch,
     ]
 
@@ -290,10 +307,10 @@ def build_daily_predictions_pdf(
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0f172a")),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ("LEFTPADDING", (0, 0), (-1, -1), 5),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
         (
             "ROWBACKGROUNDS",
             (0, 1),
@@ -417,7 +434,7 @@ def _add_summary_block(story: list, stats: dict, st: dict, n_pendientes: int = 0
 
 def _build_results_table(df: pd.DataFrame, st: dict) -> Table:
     headers = [
-        Paragraph("Enfrentamiento (V @ L)", st["header"]),
+        Paragraph("Hora y Enfrentamiento (V @ L)", st["header"]),
         Paragraph("Predicción Favorito", st["header"]),
         Paragraph("Marcador Real", st["header"]),
         Paragraph("Ganador Real", st["header"]),
@@ -436,9 +453,10 @@ def _build_results_table(df: pd.DataFrame, st: dict) -> Table:
     for _, r in ordered.iterrows():
         is_final = bool(r.get("is_final", True))
 
+        time_html = _format_game_time(r.get("game_date_utc"))
         away_html = _team_html(r["away_name"], r.get("away_abbr"), r.get("away_team_id"))
         home_html = _team_html(r["home_name"], r.get("home_abbr"), r.get("home_team_id"))
-        matchup = f"{away_html}<br/><font color='#64748b'><b>@</b></font> {home_html}"
+        matchup = f"{time_html}{away_html}<br/><font color='#64748b'><b>@</b></font> {home_html}"
 
         pred_fav_name = r["predicted_winner"]
         pred_fav_abbr = r.get("predicted_winner_abbr")
@@ -486,15 +504,14 @@ def _build_results_table(df: pd.DataFrame, st: dict) -> Table:
             ]
         )
 
-    # Ancho total: 10.2 pulgadas = 734.4 pt
     col_widths = [
-        2.0 * inch,
-        1.7 * inch,
+        2.1 * inch,
+        1.8 * inch,
         1.0 * inch,
         1.7 * inch,
         0.8 * inch,
         1.3 * inch,
-        0.7 * inch,
+        0.6 * inch,
         1.0 * inch,
     ]
 
