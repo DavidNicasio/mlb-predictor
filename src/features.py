@@ -64,6 +64,7 @@ def build_features_for_game(conn, game_row: dict, season: int) -> dict:
     row = {
         "game_pk": game_pk,
         "game_date": game_date,
+        "game_date_utc": game_row.get("game_date_utc"),
         "season": season,
         "venue_id": venue_id,
         "park_factor_runs": park_row[0] if park_row else None,
@@ -84,7 +85,7 @@ def build_features_for_date(conn, target_date: str, season: int | None = None) -
     season = season or int(target_date[:4])
     cols = [d[0] for d in conn.execute("SELECT * FROM games LIMIT 0").description]
     games = conn.execute(
-        "SELECT * FROM games WHERE game_date = ? AND game_type = 'R'", (target_date,)
+        "SELECT * FROM games WHERE game_date = ? AND game_type = 'R' ORDER BY game_date_utc ASC, game_pk ASC", (target_date,)
     ).fetchall()
 
     rows = []

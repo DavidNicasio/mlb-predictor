@@ -26,7 +26,7 @@ def fetch_predictions_with_results(
     solo retorna partidos que ya tienen status='Final' y marcador cargado."""
     query = """
             SELECT
-                g.game_pk, g.game_date, g.status, g.home_score, g.away_score,
+                g.game_pk, g.game_date, g.game_date_utc, g.status, g.home_score, g.away_score,
                 ht.name AS home_name, at.name AS away_name,
                 ht.abbreviation AS home_abbr, at.abbreviation AS away_abbr,
                 ht.team_id AS home_team_id, at.team_id AS away_team_id,
@@ -52,7 +52,7 @@ def fetch_predictions_with_results(
     if end_date:
         query += " AND g.game_date <= ?"
         params.append(end_date)
-    query += " ORDER BY g.game_date, g.game_pk"
+    query += " ORDER BY g.game_date ASC, g.game_date_utc ASC, g.game_pk ASC"
     return pd.read_sql_query(query, conn, params=params)
 
 

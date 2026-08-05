@@ -21,6 +21,7 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS games (
     game_pk         INTEGER PRIMARY KEY,
     game_date       TEXT NOT NULL,      -- YYYY-MM-DD
+    game_date_utc   TEXT,               -- Timestamp UTC de inicio del partido
     season          INTEGER NOT NULL,
     game_type       TEXT,               -- R, F, D, L, W, S...
     status          TEXT,               -- Scheduled, Final, In Progress...
@@ -177,6 +178,10 @@ def get_connection(db_path: str = "data/mlb.db") -> sqlite3.Connection:
 
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA)
+    try:
+        conn.execute("ALTER TABLE games ADD COLUMN game_date_utc TEXT;")
+    except sqlite3.OperationalError:
+        pass
     conn.commit()
 
 

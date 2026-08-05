@@ -168,10 +168,13 @@ def build_daily_predictions_pdf(
     ]
     rows = [headers]
 
-    # Ordenar por confianza de victoria
+    # Ordenar cronológicamente por hora de inicio del juego (game_date_utc)
     df_sorted = predictions_df.copy()
-    df_sorted["_confianza"] = (df_sorted["home_win_proba"] - 0.5).abs()
-    df_sorted = df_sorted.sort_values("_confianza", ascending=False)
+    if "game_date_utc" in df_sorted.columns and df_sorted["game_date_utc"].notna().any():
+        df_sorted = df_sorted.sort_values("game_date_utc", ascending=True)
+    else:
+        df_sorted["_confianza"] = (df_sorted["home_win_proba"] - 0.5).abs()
+        df_sorted = df_sorted.sort_values("_confianza", ascending=False)
 
     for _, r in df_sorted.iterrows():
         proba = float(r["home_win_proba"])
@@ -377,7 +380,10 @@ def _build_results_table(df: pd.DataFrame, st: dict) -> Table:
     ]
     rows = [headers]
 
-    ordered = df.sort_values("game_date")
+    if "game_date_utc" in df.columns and df["game_date_utc"].notna().any():
+        ordered = df.sort_values("game_date_utc", ascending=True)
+    else:
+        ordered = df.sort_values("game_date", ascending=True)
     for _, r in ordered.iterrows():
         is_final = bool(r.get("is_final", True))
 

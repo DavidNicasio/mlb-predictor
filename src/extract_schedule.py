@@ -86,6 +86,7 @@ def parse_schedule(schedule_json: dict) -> tuple[list[dict], list[dict]]:
                 games_rows.append({
                     "game_pk": game_pk,
                     "game_date": day.get("date"),
+                    "game_date_utc": g.get("gameDate"),
                     "season": int(g.get("season", day.get("date", "0000")[:4])),
                     "game_type": g.get("gameType"),
                     "status": g.get("status", {}).get("detailedState"),
@@ -202,9 +203,9 @@ def parse_boxscore(boxscore_json: dict, game_pk: int) -> tuple[list[dict], list[
 def upsert_games(conn, rows: list[dict]) -> None:
     conn.executemany(
         """INSERT OR REPLACE INTO games
-           (game_pk, game_date, season, game_type, status, home_team_id,
+           (game_pk, game_date, game_date_utc, season, game_type, status, home_team_id,
             away_team_id, home_score, away_score, venue_id, venue_name)
-           VALUES (:game_pk, :game_date, :season, :game_type, :status,
+           VALUES (:game_pk, :game_date, :game_date_utc, :season, :game_type, :status,
                    :home_team_id, :away_team_id, :home_score, :away_score,
                    :venue_id, :venue_name)""",
         rows,
