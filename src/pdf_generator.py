@@ -56,19 +56,17 @@ def _handicap_suggestion(
     away_name: str, away_abbr: str | None, away_id: int | None,
     home_proba: float
 ) -> str:
-    """Sugiére hándicap -1.5 para el favorito fuerte (>=58%) o +1.5 para proteger al underdog en juegos apretados."""
-    if home_proba >= 0.58:
+    """La sugerencia de hándicap se expresa siempre sobre el equipo FAVORITO a ganar."""
+    if home_proba >= 0.50:
         fav_html = _team_html(home_name, home_abbr, home_id)
-        return f"{fav_html} <font color='#16a34a'><b>-1.5</b></font>"
-    elif home_proba <= 0.42:
-        fav_html = _team_html(away_name, away_abbr, away_id)
-        return f"{fav_html} <font color='#16a34a'><b>-1.5</b></font>"
-    elif home_proba >= 0.50:
-        dog_html = _team_html(away_name, away_abbr, away_id)
-        return f"{dog_html} <font color='#0284c7'><b>+1.5</b></font>"
+        hcap_str = "-1.5" if home_proba >= 0.58 else "-0.5 (ML)"
     else:
-        dog_html = _team_html(home_name, home_abbr, home_id)
-        return f"{dog_html} <font color='#0284c7'><b>+1.5</b></font>"
+        fav_html = _team_html(away_name, away_abbr, away_id)
+        away_proba = 1.0 - home_proba
+        hcap_str = "-1.5" if away_proba >= 0.58 else "-0.5 (ML)"
+
+    color_hex = "#16a34a" if "-1.5" in hcap_str else "#0284c7"
+    return f"{fav_html} <font color='{color_hex}'><b>{hcap_str}</b></font>"
 
 
 def _get_custom_styles():
