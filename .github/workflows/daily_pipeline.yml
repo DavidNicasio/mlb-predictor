@@ -1,0 +1,48 @@
+name: Pipeline diario MLB
+
+on:
+  schedule:
+    # 13:00 UTC = 9:00am hora del Este (EDT). Ajusta si tu temporada
+    # cruza a EST (UTC-5) o si prefieres otra hora.
+    - cron: "0 13 * * *"
+  workflow_dispatch: {}   # permite correrlo manualmente desde la pestaña Actions
+
+permissions:
+  contents: write   # necesario para poder hacer commit de data/mlb.db de vuelta al repo
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del repo
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Correr el pipeline diario
+        working-directory: src
+        run: python pipeline.py ../data/mlb_recent.db
+
+      - name: Podar datos viejos (mantener la base chica)
+        working-directory: src
+        run: python export_recent_window.py --prune-only --dest ../data/mlb_recent.db --days 100
+
+      - name: Generar predicciones del día
+        working-directory: src
+        run: |
+          mkdir -p ../predictions
+          python predict_today.py --db-path ../data/mlb_recent.db | tee "../predictions/$(date -u +'%Y-%m-%d').txt"
+
+      - name: Commit y push de la base y predicciones actualizadas
+        run: |
+          git config user.name "mlb-pipeline-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/mlb_recent.db predictions/
+          git diff --staged --quiet || git commit -m "Actualización diaria de datos y predicciones $(date -u +'%Y-%m-%d')"
+          git push

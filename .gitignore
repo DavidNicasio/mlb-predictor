@@ -1,0 +1,16 @@
+.venv/
+venv/
+env/
+source/
+.idea/
+.vscode/
+__pycache__/
+*.pyc
+
+# Ignore all databases and parquet datasets
+*.db
+*.sqlite
+*.sqlite3
+*.parquet
+data/*.db
+src/data/*.db
