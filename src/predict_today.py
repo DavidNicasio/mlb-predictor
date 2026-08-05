@@ -32,7 +32,10 @@ def team_info(conn, team_id) -> tuple[str, str]:
     return (row[0], row[1]) if row else (f"Team {team_id}", "?")
 
 
-TEXT_COLUMNS = {"game_date", "game_date_utc", "status", "home_abridor_throws", "away_abridor_throws"}
+TEXT_COLUMNS = {
+    "game_date", "game_date_utc", "status", "home_abridor_throws",
+    "away_abridor_throws", "weather_condition", "weather_wind"
+}
 
 
 def _coerce_numeric(df: pd.DataFrame) -> pd.DataFrame:
@@ -54,6 +57,17 @@ def predict_games(conn, rows: list[dict], win_saved: dict, runs_saved: dict) -> 
 
     df["home_win_proba"] = win_saved["model"].predict_proba(X_win)[:, 1]
     df["total_runs_pred"] = runs_saved["model"].predict(X_runs)
+
+    import features_f5
+    f5_res = [
+        features_f5.calculate_f5_projections(
+            r.get("home_fip"), r.get("away_fip"),
+            r.get("home_woba_vs_hand"), r.get("away_woba_vs_hand"),
+            float(r["total_runs_pred"]), float(r["home_win_proba"])
+        ) for _, r in df.iterrows()
+    ]
+    df["f5_total_runs_pred"] = [f["f5_total_runs_pred"] for f in f5_res]
+    df["f5_home_win_proba"] = [f["f5_home_win_proba"] for f in f5_res]
 
     df["home_name"] = df["home_team_id"].apply(lambda t: team_info(conn, t)[0])
     df["home_abbr"] = df["home_team_id"].apply(lambda t: team_info(conn, t)[1])

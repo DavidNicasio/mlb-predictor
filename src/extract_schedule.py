@@ -52,7 +52,7 @@ def fetch_schedule(date_str: str, sport_id: int = 1) -> dict:
     params = {
         "sportId": sport_id,
         "date": date_str,
-        "hydrate": "team,linescore,probablePitcher",
+        "hydrate": "weather,team,linescore,probablePitcher",
     }
     return _get(f"{BASE_URL}/schedule", params=params)
 
@@ -64,7 +64,7 @@ def fetch_schedule_range(start_date: str, end_date: str, sport_id: int = 1) -> d
         "sportId": sport_id,
         "startDate": start_date,
         "endDate": end_date,
-        "hydrate": "team,linescore,probablePitcher",
+        "hydrate": "weather,team,linescore,probablePitcher",
     }
     return _get(f"{BASE_URL}/schedule", params=params)
 
@@ -82,6 +82,8 @@ def parse_schedule(schedule_json: dict) -> tuple[list[dict], list[dict]]:
                 home = teams.get("home", {})
                 away = teams.get("away", {})
                 venue = g.get("venue", {})
+                w = g.get("weather", {})
+                temp_val = int(w.get("temp")) if w.get("temp") and str(w.get("temp")).isdigit() else None
 
                 games_rows.append({
                     "game_pk": game_pk,
@@ -96,6 +98,9 @@ def parse_schedule(schedule_json: dict) -> tuple[list[dict], list[dict]]:
                     "away_score": away.get("score"),
                     "venue_id": venue.get("id"),
                     "venue_name": venue.get("name"),
+                    "weather_condition": w.get("condition"),
+                    "weather_temp": temp_val,
+                    "weather_wind": w.get("wind"),
                 })
 
                 for side, is_home in (("home", 1), ("away", 0)):
@@ -204,10 +209,12 @@ def upsert_games(conn, rows: list[dict]) -> None:
     conn.executemany(
         """INSERT OR REPLACE INTO games
            (game_pk, game_date, game_date_utc, season, game_type, status, home_team_id,
-            away_team_id, home_score, away_score, venue_id, venue_name)
+            away_team_id, home_score, away_score, venue_id, venue_name,
+            weather_condition, weather_temp, weather_wind)
            VALUES (:game_pk, :game_date, :game_date_utc, :season, :game_type, :status,
                    :home_team_id, :away_team_id, :home_score, :away_score,
-                   :venue_id, :venue_name)""",
+                   :venue_id, :venue_name,
+                   :weather_condition, :weather_temp, :weather_wind)""",
         rows,
     )
     conn.commit()

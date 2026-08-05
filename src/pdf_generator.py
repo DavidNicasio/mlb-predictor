@@ -2,7 +2,8 @@
 pdf_generator.py
 Módulo de generación de reportes en PDF (Predicciones del día y Calificación histórica/Report Card)
 utilizando ReportLab con diseño moderno, nombres completos de equipos, logos PNG,
-especificación explícita de Over/Under y sugerencia de Hándicap (-1.5 / +1.5).
+especificación explícita de Over/Under, sugerencia de Hándicap (-1.5 / +1.5),
+información de Clima/Viento y proyecciones para las Primeras 5 Entradas (F5).
 """
 
 from __future__ import annotations
@@ -69,6 +70,36 @@ def _handicap_suggestion(
     return f"{fav_html} <font color='{color_hex}'><b>{hcap_str}</b></font>"
 
 
+def _weather_html(temp: int | None, wind: str | None, condition: str | None) -> str:
+    """Formatea la información metereológica oficial."""
+    parts = []
+    if temp:
+        parts.append(f"<b>{temp}°F</b>")
+    if wind:
+        w_clean = wind.replace("In From", "In").replace("Out To", "Out")
+        parts.append(f"Viento: <b>{w_clean}</b>")
+    elif condition:
+        parts.append(f"<b>{condition}</b>")
+
+    if not parts:
+        return "<font color='#94a3b8'>Domo / Normal</font>"
+    return "<br/>".join(parts)
+
+
+def _f5_html(
+    f5_runs: float, f5_home_proba: float,
+    home_name: str, home_abbr: str | None, home_id: int | None,
+    away_name: str, away_abbr: str | None, away_id: int | None
+) -> str:
+    """Formatea la recomendación de Primeras 5 Entradas (F5)."""
+    fav_name = home_name if f5_home_proba >= 0.50 else away_name
+    fav_abbr = home_abbr if f5_home_proba >= 0.50 else away_abbr
+    fav_id = home_id if f5_home_proba >= 0.50 else away_id
+
+    fav_html = _team_html(fav_name, fav_abbr, fav_id)
+    return f"O/U: <b>{f5_runs:.1f}</b><br/>F5: {fav_html}"
+
+
 def _get_custom_styles():
     styles = getSampleStyleSheet()
 
@@ -120,8 +151,8 @@ def _get_custom_styles():
     cell_header = ParagraphStyle(
         "TableHeader",
         fontName="Helvetica-Bold",
-        fontSize=9,
-        leading=12,
+        fontSize=8.5,
+        leading=11,
         textColor=colors.white,
         alignment=1,
     )
@@ -185,18 +216,18 @@ def build_daily_predictions_pdf(
         doc.build(story)
         return output_path
 
-    # Tabla de predicciones
     headers = [
-        Paragraph("Enfrentamiento<br/>(Visitante @ Local)", st["header"]),
+        Paragraph("Enfrentamiento<br/>(V @ L)", st["header"]),
         Paragraph("Predicción Favorito", st["header"]),
-        Paragraph("Proyección Over / Under<br/>(Línea Carreras)", st["header"]),
+        Paragraph("Proyección O/U<br/>(Línea)", st["header"]),
         Paragraph("Sugerencia Hándicap<br/>(Run Line)", st["header"]),
+        Paragraph("Primeras 5 Entradas<br/>(F5)", st["header"]),
+        Paragraph("Clima / Viento", st["header"]),
         Paragraph("Abridor Local", st["header"]),
         Paragraph("Abridor Visitante", st["header"]),
     ]
     rows = [headers]
 
-    # Ordenar cronológicamente por hora de inicio del juego (game_date_utc)
     df_sorted = predictions_df.copy()
     if "game_date_utc" in df_sorted.columns and df_sorted["game_date_utc"].notna().any():
         df_sorted = df_sorted.sort_values("game_date_utc", ascending=True)
@@ -211,26 +242,33 @@ def build_daily_predictions_pdf(
         fav_id = r.get("home_team_id") if proba >= 0.5 else r.get("away_team_id")
         fav_proba = proba if proba >= 0.5 else 1.0 - proba
 
-        # Nombres completos con logos
         home_html = _team_html(r["home_name"], r.get("home_abbr"), r.get("home_team_id"))
         away_html = _team_html(r["away_name"], r.get("away_abbr"), r.get("away_team_id"))
         matchup_html = f"{away_html}<br/><font color='#64748b'><b>@</b></font> {home_html}"
 
-        # Favorito
         fav_team_html = _team_html(fav_name, fav_abbr, fav_id)
-        fav_cell_html = f"{fav_team_html}<br/><font color='#0284c7'><b>{fav_proba:.1%} victoria</b></font> (Local: {proba:.1%})"
+        fav_cell_html = f"{fav_team_html}<br/><font color='#0284c7'><b>{fav_proba:.1%} victoria</b></font>"
 
-        # Over / Under explícito
         ou_label = _ou_html(float(r["total_runs_pred"]))
 
-        # Sugerencia Hándicap
         hcap_html = _handicap_suggestion(
             r["home_name"], r.get("home_abbr"), r.get("home_team_id"),
             r["away_name"], r.get("away_abbr"), r.get("away_team_id"),
             proba
         )
 
-        # Abridores
+        f5_runs = float(r.get("f5_total_runs_pred", float(r["total_runs_pred"]) * 0.55))
+        f5_home_proba = float(r.get("f5_home_win_proba", proba))
+        f5_cell = _f5_html(
+            f5_runs, f5_home_proba,
+            r["home_name"], r.get("home_abbr"), r.get("home_team_id"),
+            r["away_name"], r.get("away_abbr"), r.get("away_team_id")
+        )
+
+        weather_cell = _weather_html(
+            r.get("weather_temp"), r.get("weather_wind"), r.get("weather_condition")
+        )
+
         if pd.notna(r.get("home_abridor_id")) and r.get("home_abridor_id"):
             h_fip = f"{r.get('home_fip'):.2f}" if pd.notna(r.get("home_fip")) else "N/A"
             h_starts = int(r.get("home_n_starts") or 0)
@@ -251,18 +289,23 @@ def build_daily_predictions_pdf(
                 Paragraph(fav_cell_html, st["cell"]),
                 Paragraph(ou_label, st["cell_center"]),
                 Paragraph(hcap_html, st["cell"]),
+                Paragraph(f5_cell, st["cell"]),
+                Paragraph(weather_cell, st["cell_center"]),
                 Paragraph(h_pitcher, st["cell"]),
                 Paragraph(a_pitcher, st["cell"]),
             ]
         )
 
+    # Anchos de columnas (total 10.2 pulgadas = 734.4 pt)
     col_widths = [
-        2.1 * inch,
-        2.1 * inch,
-        1.3 * inch,
         1.7 * inch,
         1.5 * inch,
-        1.5 * inch,
+        1.1 * inch,
+        1.4 * inch,
+        1.3 * inch,
+        1.0 * inch,
+        1.1 * inch,
+        1.1 * inch,
     ]
 
     table = Table(rows, colWidths=col_widths, repeatRows=1)
@@ -270,10 +313,10 @@ def build_daily_predictions_pdf(
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0f172a")),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ("LEFTPADDING", (0, 0), (-1, -1), 5),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
         (
             "ROWBACKGROUNDS",
             (0, 1),
@@ -400,7 +443,7 @@ def _build_results_table(df: pd.DataFrame, st: dict) -> Table:
         Paragraph("Enfrentamiento (V @ L)", st["header"]),
         Paragraph("Predicción Favorito", st["header"]),
         Paragraph("Sugerencia Hándicap", st["header"]),
-        Paragraph("Marcador Real (V-L)", st["header"]),
+        Paragraph("Marcador Real", st["header"]),
         Paragraph("Ganador Real", st["header"]),
         Paragraph("¿Acierto?", st["header"]),
         Paragraph("Proyección Over / Under", st["header"]),
@@ -426,7 +469,6 @@ def _build_results_table(df: pd.DataFrame, st: dict) -> Table:
         pred_fav_html = _team_html(pred_fav_name, pred_fav_abbr)
         pred_cell = f"{pred_fav_html}<br/><font color='#0284c7'><b>{r['favorito_proba']:.0%}</b></font>"
 
-        # Sugerencia de Hándicap
         hcap_html = _handicap_suggestion(
             r["home_name"], r.get("home_abbr"), r.get("home_team_id"),
             r["away_name"], r.get("away_abbr"), r.get("away_team_id"),

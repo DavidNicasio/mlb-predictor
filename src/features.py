@@ -73,6 +73,9 @@ def build_features_for_game(conn, game_row: dict, season: int) -> dict:
         "status": game_row["status"],
         "home_score": game_row["home_score"],
         "away_score": game_row["away_score"],
+        "weather_condition": game_row.get("weather_condition"),
+        "weather_temp": game_row.get("weather_temp"),
+        "weather_wind": game_row.get("weather_wind"),
     }
     row.update(_prefix_keys(home_pitching, "home"))
     row.update(_prefix_keys(away_pitching, "away"))

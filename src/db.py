@@ -31,6 +31,9 @@ CREATE TABLE IF NOT EXISTS games (
     away_score      INTEGER,
     venue_id        INTEGER,
     venue_name      TEXT,
+    weather_condition TEXT,
+    weather_temp    INTEGER,
+    weather_wind    TEXT,
     updated_at      TEXT DEFAULT (datetime('now'))
 );
 
@@ -178,10 +181,11 @@ def get_connection(db_path: str = "data/mlb.db") -> sqlite3.Connection:
 
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA)
-    try:
-        conn.execute("ALTER TABLE games ADD COLUMN game_date_utc TEXT;")
-    except sqlite3.OperationalError:
-        pass
+    for col, ctype in [("game_date_utc", "TEXT"), ("weather_condition", "TEXT"), ("weather_temp", "INTEGER"), ("weather_wind", "TEXT")]:
+        try:
+            conn.execute(f"ALTER TABLE games ADD COLUMN {col} {ctype};")
+        except sqlite3.OperationalError:
+            pass
     conn.commit()
 
 

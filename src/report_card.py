@@ -27,6 +27,7 @@ def fetch_predictions_with_results(
     query = """
             SELECT
                 g.game_pk, g.game_date, g.game_date_utc, g.status, g.home_score, g.away_score,
+                g.weather_condition, g.weather_temp, g.weather_wind,
                 ht.name AS home_name, at.name AS away_name,
                 ht.abbreviation AS home_abbr, at.abbreviation AS away_abbr,
                 ht.team_id AS home_team_id, at.team_id AS away_team_id,
@@ -74,6 +75,17 @@ def compute_grades(df: pd.DataFrame) -> pd.DataFrame:
         return df
     df = df.copy()
     df["is_final"] = (df["status"] == "Final") & df["home_score"].notna() & df["away_score"].notna()
+
+    import features_f5
+    f5_res = [
+        features_f5.calculate_f5_projections(
+            r.get("home_fip"), r.get("away_fip"),
+            r.get("home_woba_vs_hand"), r.get("away_woba_vs_hand"),
+            float(r["total_runs_pred"]), float(r["home_win_proba"])
+        ) for _, r in df.iterrows()
+    ]
+    df["f5_total_runs_pred"] = [f["f5_total_runs_pred"] for f in f5_res]
+    df["f5_home_win_proba"] = [f["f5_home_win_proba"] for f in f5_res]
 
     df["actual_total"] = None
     df["home_won"] = None
