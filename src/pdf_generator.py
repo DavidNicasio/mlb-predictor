@@ -2,8 +2,7 @@
 pdf_generator.py
 Módulo de generación de reportes en PDF (Predicciones del día y Calificación histórica/Report Card)
 utilizando ReportLab con diseño moderno, nombres completos de equipos, logos PNG,
-especificación explícita de Over/Under, sugerencia de Hándicap (-1.5 / +1.5),
-información de Clima/Viento y proyecciones para las Primeras 5 Entradas (F5).
+especificación explícita de Over/Under, información de Clima/Viento y proyecciones F5.
 """
 
 from __future__ import annotations
@@ -52,37 +51,24 @@ def _ou_html(total_runs: float) -> str:
         return f"<font color='#0284c7'><b>LÍNEA</b></font><br/><b>{total_runs:.1f} carreras</b>"
 
 
-def _handicap_suggestion(
-    home_name: str, home_abbr: str | None, home_id: int | None,
-    away_name: str, away_abbr: str | None, away_id: int | None,
-    home_proba: float
-) -> str:
-    """La sugerencia de hándicap se expresa siempre sobre el equipo FAVORITO a ganar."""
-    if home_proba >= 0.50:
-        fav_html = _team_html(home_name, home_abbr, home_id)
-        hcap_str = "-1.5" if home_proba >= 0.58 else "-0.5 (ML)"
-    else:
-        fav_html = _team_html(away_name, away_abbr, away_id)
-        away_proba = 1.0 - home_proba
-        hcap_str = "-1.5" if away_proba >= 0.58 else "-0.5 (ML)"
-
-    color_hex = "#16a34a" if "-1.5" in hcap_str else "#0284c7"
-    return f"{fav_html} <font color='{color_hex}'><b>{hcap_str}</b></font>"
-
-
-def _weather_html(temp: int | None, wind: str | None, condition: str | None) -> str:
-    """Formatea la información metereológica oficial."""
+def _weather_html(temp, wind, condition) -> str:
+    """Formatea la información metereológica filtrando valores nulos o NaNs."""
     parts = []
-    if temp:
-        parts.append(f"<b>{temp}°F</b>")
-    if wind:
-        w_clean = wind.replace("In From", "In").replace("Out To", "Out")
+    if temp is not None and pd.notna(temp) and str(temp).strip().lower() != "nan":
+        try:
+            t_int = int(float(temp))
+            parts.append(f"<b>{t_int}°F</b>")
+        except (ValueError, TypeError):
+            pass
+
+    if wind is not None and pd.notna(wind) and str(wind).strip().lower() != "nan":
+        w_clean = str(wind).replace("In From", "In").replace("Out To", "Out")
         parts.append(f"Viento: <b>{w_clean}</b>")
-    elif condition:
+    elif condition is not None and pd.notna(condition) and str(condition).strip().lower() != "nan":
         parts.append(f"<b>{condition}</b>")
 
     if not parts:
-        return "<font color='#94a3b8'>Domo / Normal</font>"
+        return "<font color='#94a3b8'>Normal / Domo</font>"
     return "<br/>".join(parts)
 
 
@@ -151,8 +137,8 @@ def _get_custom_styles():
     cell_header = ParagraphStyle(
         "TableHeader",
         fontName="Helvetica-Bold",
-        fontSize=8.5,
-        leading=11,
+        fontSize=9,
+        leading=12,
         textColor=colors.white,
         alignment=1,
     )
@@ -219,8 +205,7 @@ def build_daily_predictions_pdf(
     headers = [
         Paragraph("Enfrentamiento<br/>(V @ L)", st["header"]),
         Paragraph("Predicción Favorito", st["header"]),
-        Paragraph("Proyección O/U<br/>(Línea)", st["header"]),
-        Paragraph("Sugerencia Hándicap<br/>(Run Line)", st["header"]),
+        Paragraph("Proyección Over / Under<br/>(Línea Carreras)", st["header"]),
         Paragraph("Primeras 5 Entradas<br/>(F5)", st["header"]),
         Paragraph("Clima / Viento", st["header"]),
         Paragraph("Abridor Local", st["header"]),
@@ -250,12 +235,6 @@ def build_daily_predictions_pdf(
         fav_cell_html = f"{fav_team_html}<br/><font color='#0284c7'><b>{fav_proba:.1%} victoria</b></font>"
 
         ou_label = _ou_html(float(r["total_runs_pred"]))
-
-        hcap_html = _handicap_suggestion(
-            r["home_name"], r.get("home_abbr"), r.get("home_team_id"),
-            r["away_name"], r.get("away_abbr"), r.get("away_team_id"),
-            proba
-        )
 
         f5_runs = float(r.get("f5_total_runs_pred", float(r["total_runs_pred"]) * 0.55))
         f5_home_proba = float(r.get("f5_home_win_proba", proba))
@@ -288,7 +267,6 @@ def build_daily_predictions_pdf(
                 Paragraph(matchup_html, st["cell"]),
                 Paragraph(fav_cell_html, st["cell"]),
                 Paragraph(ou_label, st["cell_center"]),
-                Paragraph(hcap_html, st["cell"]),
                 Paragraph(f5_cell, st["cell"]),
                 Paragraph(weather_cell, st["cell_center"]),
                 Paragraph(h_pitcher, st["cell"]),
@@ -298,14 +276,13 @@ def build_daily_predictions_pdf(
 
     # Anchos de columnas (total 10.2 pulgadas = 734.4 pt)
     col_widths = [
-        1.7 * inch,
-        1.5 * inch,
-        1.1 * inch,
-        1.4 * inch,
+        2.0 * inch,
+        1.8 * inch,
         1.3 * inch,
-        1.0 * inch,
+        1.4 * inch,
         1.1 * inch,
-        1.1 * inch,
+        1.3 * inch,
+        1.3 * inch,
     ]
 
     table = Table(rows, colWidths=col_widths, repeatRows=1)
@@ -313,10 +290,10 @@ def build_daily_predictions_pdf(
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0f172a")),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ("LEFTPADDING", (0, 0), (-1, -1), 4),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
         (
             "ROWBACKGROUNDS",
             (0, 1),
@@ -442,7 +419,6 @@ def _build_results_table(df: pd.DataFrame, st: dict) -> Table:
     headers = [
         Paragraph("Enfrentamiento (V @ L)", st["header"]),
         Paragraph("Predicción Favorito", st["header"]),
-        Paragraph("Sugerencia Hándicap", st["header"]),
         Paragraph("Marcador Real", st["header"]),
         Paragraph("Ganador Real", st["header"]),
         Paragraph("¿Acierto?", st["header"]),
@@ -468,12 +444,6 @@ def _build_results_table(df: pd.DataFrame, st: dict) -> Table:
         pred_fav_abbr = r.get("predicted_winner_abbr")
         pred_fav_html = _team_html(pred_fav_name, pred_fav_abbr)
         pred_cell = f"{pred_fav_html}<br/><font color='#0284c7'><b>{r['favorito_proba']:.0%}</b></font>"
-
-        hcap_html = _handicap_suggestion(
-            r["home_name"], r.get("home_abbr"), r.get("home_team_id"),
-            r["away_name"], r.get("away_abbr"), r.get("away_team_id"),
-            float(r["home_win_proba"])
-        )
 
         ou_pred = _ou_html(float(r["total_runs_pred"]))
 
@@ -507,7 +477,6 @@ def _build_results_table(df: pd.DataFrame, st: dict) -> Table:
             [
                 Paragraph(matchup, st["cell"]),
                 Paragraph(pred_cell, st["cell"]),
-                Paragraph(hcap_html, st["cell"]),
                 Paragraph(score, st["cell_center"]),
                 Paragraph(actual_fav_html, st["cell"]),
                 Paragraph(hit_html, st["cell_center"]),
@@ -519,15 +488,14 @@ def _build_results_table(df: pd.DataFrame, st: dict) -> Table:
 
     # Ancho total: 10.2 pulgadas = 734.4 pt
     col_widths = [
+        2.0 * inch,
         1.7 * inch,
-        1.4 * inch,
-        1.4 * inch,
+        1.0 * inch,
+        1.7 * inch,
         0.8 * inch,
-        1.4 * inch,
-        0.6 * inch,
-        1.2 * inch,
-        0.6 * inch,
-        1.1 * inch,
+        1.3 * inch,
+        0.7 * inch,
+        1.0 * inch,
     ]
 
     table = Table(rows, colWidths=col_widths, repeatRows=1)
@@ -537,8 +505,8 @@ def _build_results_table(df: pd.DataFrame, st: dict) -> Table:
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
         ("TOPPADDING", (0, 0), (-1, -1), 5),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ("LEFTPADDING", (0, 0), (-1, -1), 4),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
         (
             "ROWBACKGROUNDS",
             (0, 1),
