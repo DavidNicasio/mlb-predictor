@@ -4,11 +4,12 @@ Fase 5: inferencia diaria. Toma los partidos de una fecha (por defecto,
 hoy), arma sus features con build_features_for_date() (Fase 3), y saca
 probabilidad de victoria + proyección de Over/Under con los modelos ya
 entrenados (Fase 4). Registra cada predicción en `predictions_log` para
-poder comparar después contra el resultado real.
+poder comparar después contra el resultado real y genera un reporte en PDF.
 
 Uso:
     python src/predict_today.py                    # hoy
     python src/predict_today.py --date 2026-08-05   # cualquier fecha
+    python src/predict_today.py --pdf reports/hoy.pdf
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ import pandas as pd
 
 import db
 import features
+import pdf_generator
 
 
 def team_name(conn, team_id) -> str:
@@ -126,8 +128,11 @@ def log_predictions(conn, df: pd.DataFrame, win_saved: dict, runs_saved: dict) -
 
 def run(target_date: str | None = None, db_path: str = "data/mlb.db",
         win_model_path: str = "data/model_win.joblib",
-        runs_model_path: str = "data/model_runs.joblib") -> pd.DataFrame:
+        runs_model_path: str = "data/model_runs.joblib",
+        pdf_output: str | None = None) -> pd.DataFrame:
     target_date = target_date or str(date.today())
+    pdf_output = pdf_output or f"reports/predictions_{target_date}.pdf"
+
     conn = db.get_connection(db_path)
     db.init_db(conn)
 
@@ -139,6 +144,10 @@ def run(target_date: str | None = None, db_path: str = "data/mlb.db",
     print_report(df, target_date)
     log_predictions(conn, df, win_saved, runs_saved)
 
+    if not df.empty:
+        pdf_path = pdf_generator.build_daily_predictions_pdf(pdf_output, target_date, df)
+        print(f"Reporte PDF de predicciones generado en: {pdf_path}")
+
     conn.close()
     return df
 
@@ -149,5 +158,6 @@ if __name__ == "__main__":
     parser.add_argument("--db-path", default="data/mlb.db")
     parser.add_argument("--win-model", default="data/model_win.joblib")
     parser.add_argument("--runs-model", default="data/model_runs.joblib")
+    parser.add_argument("--pdf", default=None, help="Ruta del PDF de predicciones de salida")
     args = parser.parse_args()
-    run(args.date, args.db_path, args.win_model, args.runs_model)
+    run(args.date, args.db_path, args.win_model, args.runs_model, args.pdf)

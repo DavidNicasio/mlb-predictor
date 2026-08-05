@@ -30,20 +30,9 @@ from datetime import date, timedelta
 from pathlib import Path
 
 import pandas as pd
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import landscape, letter
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.units import inch
-from reportlab.platypus import (
-    PageBreak,
-    Paragraph,
-    SimpleDocTemplate,
-    Spacer,
-    Table,
-    TableStyle,
-)
 
 import db
+import pdf_generator
 
 # Diferencia (en carreras) por debajo de la cual el total real se considera
 # "igual" a la proyección en vez de SOBRE/BAJO.
@@ -72,7 +61,7 @@ def fetch_predictions_with_results(
                 JOIN predictions_log p
                 ON p.game_pk = latest.game_pk AND p.predicted_at = latest.max_pred
             WHERE g.status = 'Final' AND g.game_type = 'R'
-              AND g.home_score IS NOT NULL AND g.away_score IS NOT NULL \
+              AND g.home_score IS NOT NULL AND g.away_score IS NOT NULL
             """
     params: list = []
     if start_date:
@@ -145,124 +134,6 @@ def summarize(df: pd.DataFrame) -> dict:
     }
 
 
-def _summary_paragraphs(stats: dict, styles) -> list:
-    if stats.get("n_games", 0) == 0:
-        return [Paragraph("No hay partidos calificables en este rango todavia.", styles["Normal"])]
-
-    if stats["bias_runs"] > OU_TOL:
-        sesgo_txt = "(el modelo tiende a quedarse CORTO frente al total real)"
-    elif stats["bias_runs"] < -OU_TOL:
-        sesgo_txt = "(el modelo tiende a proyectar POR ENCIMA del total real)"
-    else:
-        sesgo_txt = "(sin sesgo notable)"
-
-    lines = [
-        f"Partidos evaluados: <b>{stats['n_games']}</b>",
-        f"Aciertos de ganador: <b>{stats['win_hits']} de {stats['n_games']} "
-        f"({stats['win_pct']:.1f}%)</b>",
-        f"Error promedio en la proyeccion de carreras totales: "
-        f"<b>{stats['mae_runs']:.2f} carreras</b>",
-        f"Sesgo promedio del modelo: <b>{stats['bias_runs']:+.2f} carreras</b> {sesgo_txt}",
-        f"Partidos SOBRE la proyeccion: {stats['n_over']}  |  "
-        f"BAJO la proyeccion: {stats['n_under']}  |  IGUAL: {stats['n_igual']}",
-    ]
-    return [Paragraph(line, styles["Normal"]) for line in lines]
-
-
-def build_game_table(df: pd.DataFrame) -> Table:
-    header = [
-        "Partido", "Favorito", "Marcador\n(V-L)", "Gano",
-        "Acerto", "Proy.\nO/U", "Total\nreal", "Comparacion",
-    ]
-    rows = [header]
-    ordered = df.sort_values("game_date")
-    for _, r in ordered.iterrows():
-        rows.append([
-            f"{r['away_abbr']} @ {r['home_abbr']}",
-            f"{r['predicted_winner_abbr']}  {r['favorito_proba']:.0%}",
-            f"{int(r['away_score'])}-{int(r['home_score'])}",
-            r["actual_winner_abbr"],
-            "SI" if r["win_hit"] else "NO",
-            f"{r['total_runs_pred']:.1f}",
-            f"{int(r['actual_total'])}",
-            f"{r['ou_label']}  {r['ou_diff']:+.1f}",
-        ])
-
-    col_widths = [
-        1.5 * inch, 1.2 * inch, 1.0 * inch, 0.8 * inch,
-        0.8 * inch, 0.9 * inch, 0.9 * inch, 1.4 * inch,
-        ]
-    table = Table(rows, colWidths=col_widths, repeatRows=1)
-
-    style = [
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2937")),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-        ("FONTSIZE", (0, 0), (-1, -1), 9.5),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("ALIGN", (1, 0), (-1, -1), "CENTER"),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f3f4f6")]),
-    ]
-    for i, (_, r) in enumerate(ordered.iterrows(), start=1):
-        color = colors.HexColor("#15803d") if r["win_hit"] else colors.HexColor("#b91c1c")
-        style.append(("TEXTCOLOR", (4, i), (4, i), color))
-        style.append(("FONTNAME", (4, i), (4, i), "Helvetica-Bold"))
-    table.setStyle(TableStyle(style))
-    return table
-
-
-def build_pdf(
-        output_path: str,
-        target_date: str,
-        daily_df: pd.DataFrame,
-        cumulative_df: pd.DataFrame,
-        n_pendientes: int,
-) -> None:
-    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-    doc = SimpleDocTemplate(
-        output_path, pagesize=landscape(letter),
-        topMargin=0.5 * inch, bottomMargin=0.5 * inch,
-        leftMargin=0.5 * inch, rightMargin=0.5 * inch,
-    )
-    styles = getSampleStyleSheet()
-    story = []
-
-    story.append(Paragraph("Reporte de Predicciones MLB", styles["Title"]))
-    story.append(Paragraph(f"Generado el {date.today().isoformat()}", styles["Normal"]))
-    story.append(Spacer(1, 18))
-
-    story.append(Paragraph(f"Cuadro del dia: {target_date}", styles["Heading2"]))
-    if n_pendientes:
-        story.append(Paragraph(
-            f"({n_pendientes} partido(s) de esa fecha aun no tienen resultado final "
-            "y no se incluyen en este cuadro)", styles["Italic"],
-        ))
-    story.append(Spacer(1, 8))
-    daily_stats = summarize(daily_df)
-    story.extend(_summary_paragraphs(daily_stats, styles))
-    story.append(Spacer(1, 14))
-    if not daily_df.empty:
-        story.append(build_game_table(daily_df))
-
-    story.append(PageBreak())
-    story.append(Paragraph("Acumulado historico", styles["Heading2"]))
-    cum_stats = summarize(cumulative_df)
-    if cum_stats.get("n_games", 0) > 0:
-        date_min = cumulative_df["game_date"].min()
-        date_max = cumulative_df["game_date"].max()
-        story.append(Paragraph(f"Rango de fechas: {date_min} a {date_max}", styles["Normal"]))
-    story.append(Spacer(1, 6))
-    story.extend(_summary_paragraphs(cum_stats, styles))
-
-    doc.build(story)
-
-
 def run(
         target_date: str | None = None,
         db_path: str = "data/mlb.db",
@@ -280,7 +151,7 @@ def run(
     cumulative_raw = fetch_predictions_with_results(conn)
     cumulative_df = compute_grades(cumulative_raw)
 
-    build_pdf(output_path, target_date, daily_df, cumulative_df, n_pendientes)
+    pdf_generator.build_report_card_pdf(output_path, target_date, daily_df, cumulative_df, n_pendientes)
     conn.close()
 
     print(f"Reporte generado: {output_path}")
