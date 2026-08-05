@@ -1,7 +1,8 @@
 """
 pdf_generator.py
 Módulo de generación de reportes en PDF (Predicciones del día y Calificación histórica/Report Card)
-utilizando ReportLab con diseño moderno, textos auto-ajustables (Paragraph) y tablas limpias.
+utilizando ReportLab con diseño moderno, nombres completos de equipos, logos PNG,
+especificación clara de Over/Under y soporte para partidos pendientes.
 """
 
 from __future__ import annotations
@@ -16,14 +17,28 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import (
     HRFlowable,
-    KeepTogether,
-    PageBreak,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
     Table,
     TableStyle,
 )
+
+LOGOS_DIR = Path("assets/logos")
+
+
+def _team_html(team_name: str, team_abbr: str | None = None, team_id: int | None = None) -> str:
+    """Retorna código HTML para mostrar el logo PNG (si existe) seguido del nombre completo."""
+    img_path = None
+    if team_abbr and (LOGOS_DIR / f"{team_abbr}.png").exists():
+        img_path = LOGOS_DIR / f"{team_abbr}.png"
+    elif team_id and (LOGOS_DIR / f"{team_id}.png").exists():
+        img_path = LOGOS_DIR / f"{team_id}.png"
+
+    clean_path = str(img_path).replace("\\", "/") if img_path else None
+    if clean_path:
+        return f'<img src="{clean_path}" width="16" height="16" valign="middle"/> &nbsp;<b>{team_name}</b>'
+    return f"<b>{team_name}</b>"
 
 
 def _get_custom_styles():
@@ -33,30 +48,30 @@ def _get_custom_styles():
         "DocTitle",
         parent=styles["Title"],
         fontName="Helvetica-Bold",
-        fontSize=20,
-        leading=24,
-        textColor=colors.HexColor("#1e293b"),
-        alignment=0, # Izquierda
+        fontSize=18,
+        leading=22,
+        textColor=colors.HexColor("#0f172a"),
+        alignment=0,
     )
 
     subtitle_style = ParagraphStyle(
         "DocSubtitle",
         parent=styles["Normal"],
         fontName="Helvetica",
-        fontSize=10,
+        fontSize=9.5,
         leading=13,
-        textColor=colors.HexColor("#64748b"),
+        textColor=colors.HexColor("#475569"),
     )
 
     h2_style = ParagraphStyle(
         "SectionH2",
         parent=styles["Heading2"],
         fontName="Helvetica-Bold",
-        fontSize=13,
-        leading=16,
+        fontSize=12,
+        leading=15,
         textColor=colors.HexColor("#0f172a"),
-        spaceBefore=10,
-        spaceAfter=6,
+        spaceBefore=8,
+        spaceAfter=4,
     )
 
     cell_style = ParagraphStyle(
@@ -68,21 +83,9 @@ def _get_custom_styles():
         alignment=0,
     )
 
-    cell_bold = ParagraphStyle(
-        "TableCellBold",
-        parent=cell_style,
-        fontName="Helvetica-Bold",
-    )
-
     cell_center = ParagraphStyle(
         "TableCellCenter",
         parent=cell_style,
-        alignment=1,
-    )
-
-    cell_center_bold = ParagraphStyle(
-        "TableCellCenterBold",
-        parent=cell_bold,
         alignment=1,
     )
 
@@ -100,9 +103,7 @@ def _get_custom_styles():
         "subtitle": subtitle_style,
         "h2": h2_style,
         "cell": cell_style,
-        "cell_bold": cell_bold,
         "cell_center": cell_center,
-        "cell_center_bold": cell_center_bold,
         "header": cell_header,
         "normal": styles["Normal"],
     }
@@ -113,9 +114,7 @@ def build_daily_predictions_pdf(
     target_date: str,
     predictions_df: pd.DataFrame,
 ) -> str:
-    """Genera un PDF visual moderno con las predicciones del día (partidos programados,
-    en progreso o finalizados).
-    """
+    """Genera un PDF visual con las predicciones de la fecha especificada."""
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
     doc = SimpleDocTemplate(
@@ -131,21 +130,21 @@ def build_daily_predictions_pdf(
     story = []
 
     # Encabezado principal
-    story.append(Paragraph(f"MLB Predictor - Predicciones del Día", st["title"]))
+    story.append(Paragraph("MLB Predictor - Reporte de Predicciones Diarias", st["title"]))
     story.append(
         Paragraph(
-            f"Fecha de partidos: <b>{target_date}</b> | Reporte generado el {date.today().isoformat()} | Partidos programados: {len(predictions_df)}",
+            f"Fecha de partidos: <b>{target_date}</b> | Generado el: {date.today().isoformat()} | Total partidos: {len(predictions_df)}",
             st["subtitle"],
         )
     )
-    story.append(Spacer(1, 10))
+    story.append(Spacer(1, 6))
     story.append(
         HRFlowable(
             width="100%",
             thickness=1.5,
             color=colors.HexColor("#0284c7"),
             spaceBefore=0,
-            spaceAfter=12,
+            spaceAfter=10,
         )
     )
 
@@ -159,83 +158,89 @@ def build_daily_predictions_pdf(
         doc.build(story)
         return output_path
 
-    # Formatear la tabla de predicciones
-    # Columnas: Partido, Favorito (Prob), Proyección O/U, Abridor Local, Abridor Visitante
-    table_data = [
-        [
-            Paragraph("Enfrentamiento<br/>(Visitante @ Local)", st["header"]),
-            Paragraph("Favorito y Probabilidad", st["header"]),
-            Paragraph("Proyección O/U<br/>(Carreras)", st["header"]),
-            Paragraph("Abridor Local (Lanzador / FIP / Ap.)", st["header"]),
-            Paragraph("Abridor Visitante (Lanzador / FIP / Ap.)", st["header"]),
-        ]
+    # Tabla de predicciones
+    headers = [
+        Paragraph("Enfrentamiento<br/>(Visitante @ Local)", st["header"]),
+        Paragraph("Predicción Favorito", st["header"]),
+        Paragraph("Proyección Over / Under<br/>(Línea Carreras)", st["header"]),
+        Paragraph("Abridor Local", st["header"]),
+        Paragraph("Abridor Visitante", st["header"]),
     ]
+    rows = [headers]
 
-    # Ordenar por nivel de confianza del modelo
+    # Ordenar por confianza de victoria
     df_sorted = predictions_df.copy()
     df_sorted["_confianza"] = (df_sorted["home_win_proba"] - 0.5).abs()
     df_sorted = df_sorted.sort_values("_confianza", ascending=False)
 
     for _, r in df_sorted.iterrows():
         proba = float(r["home_win_proba"])
-        fav_team = r["home_name"] if proba >= 0.5 else r["away_name"]
+        fav_name = r["home_name"] if proba >= 0.5 else r["away_name"]
+        fav_abbr = r["home_abbr"] if proba >= 0.5 else r["away_abbr"]
+        fav_id = r.get("home_team_id") if proba >= 0.5 else r.get("away_team_id")
         fav_proba = proba if proba >= 0.5 else 1.0 - proba
 
-        # Enfrentamiento
-        matchup_html = f"<b>{r['away_name']}</b><br/>@ <b>{r['home_name']}</b>"
+        # Nombres completos con logos
+        home_html = _team_html(r["home_name"], r.get("home_abbr"), r.get("home_team_id"))
+        away_html = _team_html(r["away_name"], r.get("away_abbr"), r.get("away_team_id"))
+        matchup_html = f"{away_html}<br/><font color='#64748b'><b>@</b></font> {home_html}"
 
         # Favorito
-        fav_html = f"<b>{fav_team}</b><br/><font color='#0369a1'><b>{fav_proba:.1%}</b></font> (Local: {proba:.1%})"
+        fav_team_html = _team_html(fav_name, fav_abbr, fav_id)
+        fav_cell_html = f"{fav_team_html}<br/><font color='#0284c7'><b>{fav_proba:.1%} victoria</b></font> (Local: {proba:.1%})"
 
-        # Over/Under
-        ou_html = f"<font size='10'><b>{r['total_runs_pred']:.1f}</b></font> carreras"
+        # Proyección Over / Under explícita
+        total_runs = float(r["total_runs_pred"])
+        if total_runs >= 8.75:
+            ou_label = f"<font color='#16a34a'><b>OVER</b></font><br/><b>{total_runs:.1f} carreras</b>"
+        elif total_runs <= 8.25:
+            ou_label = f"<font color='#dc2626'><b>UNDER</b></font><br/><b>{total_runs:.1f} carreras</b>"
+        else:
+            ou_label = f"<font color='#0284c7'><b>LÍNEA</b></font><br/><b>{total_runs:.1f} carreras</b>"
 
-        # Abridor Local
+        # Abridores
         if pd.notna(r.get("home_abridor_id")) and r.get("home_abridor_id"):
             h_fip = f"{r.get('home_fip'):.2f}" if pd.notna(r.get("home_fip")) else "N/A"
             h_starts = int(r.get("home_n_starts") or 0)
             h_pitcher = f"Brazo: {r.get('home_abridor_throws') or '?'}<br/>FIP: <b>{h_fip}</b> ({h_starts} ap.)"
         else:
-            h_pitcher = "<font color='#64748b'><i>Sin confirmar</i></font>"
+            h_pitcher = "<font color='#94a3b8'><i>Sin confirmar</i></font>"
 
-        # Abridor Visitante
         if pd.notna(r.get("away_abridor_id")) and r.get("away_abridor_id"):
             a_fip = f"{r.get('away_fip'):.2f}" if pd.notna(r.get("away_fip")) else "N/A"
             a_starts = int(r.get("away_n_starts") or 0)
             a_pitcher = f"Brazo: {r.get('away_abridor_throws') or '?'}<br/>FIP: <b>{a_fip}</b> ({a_starts} ap.)"
         else:
-            a_pitcher = "<font color='#64748b'><i>Sin confirmar</i></font>"
+            a_pitcher = "<font color='#94a3b8'><i>Sin confirmar</i></font>"
 
-        table_data.append(
+        rows.append(
             [
                 Paragraph(matchup_html, st["cell"]),
-                Paragraph(fav_html, st["cell_center"]),
-                Paragraph(ou_html, st["cell_center"]),
+                Paragraph(fav_cell_html, st["cell"]),
+                Paragraph(ou_label, st["cell_center"]),
                 Paragraph(h_pitcher, st["cell"]),
                 Paragraph(a_pitcher, st["cell"]),
             ]
         )
 
-    # Ancho total disponible en landscape letter: 11in - 0.8in = 10.2 in = 734.4 points
-    # Distribución de anchos: [2.2 in, 1.8 in, 1.4 in, 2.4 in, 2.4 in] -> sum 10.2 in
+    # Anchos de columnas (total 10.2 pulgadas en landscape letter)
     col_widths = [
-        2.2 * inch,
+        2.5 * inch,
+        2.5 * inch,
+        1.6 * inch,
         1.8 * inch,
-        1.4 * inch,
-        2.4 * inch,
-        2.4 * inch,
+        1.8 * inch,
     ]
 
-    table = Table(table_data, colWidths=col_widths, repeatRows=1)
+    table = Table(rows, colWidths=col_widths, repeatRows=1)
     t_style = [
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0f172a")),
-        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-        ("LEFTPADDING", (0, 0), (-1, -1), 8),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
         (
             "ROWBACKGROUNDS",
             (0, 1),
@@ -257,9 +262,7 @@ def build_report_card_pdf(
     cumulative_df: pd.DataFrame,
     n_pendientes: int = 0,
 ) -> str:
-    """Genera el PDF de calificación histórica (Report Card) comparando predicciones
-    contra los marcadores reales.
-    """
+    """Genera el PDF de calificación histórica (Report Card) incluyendo partidos finalizados y pendientes."""
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
     doc = SimpleDocTemplate(
@@ -275,49 +278,42 @@ def build_report_card_pdf(
     story = []
 
     # Encabezado principal
-    story.append(Paragraph(f"MLB Predictor - Evaluación de Resultados (Report Card)", st["title"]))
+    story.append(Paragraph("MLB Predictor - Evaluación de Resultados (Report Card)", st["title"]))
     story.append(
         Paragraph(
-            f"Fecha evaluada: <b>{target_date}</b> | Reporte generado el {date.today().isoformat()}",
+            f"Fecha evaluada: <b>{target_date}</b> | Reporte generado el: {date.today().isoformat()}",
             st["subtitle"],
         )
     )
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, 6))
     story.append(
         HRFlowable(
             width="100%",
             thickness=1.5,
             color=colors.HexColor("#059669"),
             spaceBefore=0,
-            spaceAfter=10,
+            spaceAfter=8,
         )
     )
 
     # --- Sección 1: Cuadro del Día ---
     story.append(Paragraph(f"Resumen del Día: {target_date}", st["h2"]))
-    if n_pendientes > 0:
-        story.append(
-            Paragraph(
-                f"<font color='#d97706'><b>Nota:</b> {n_pendientes} partido(s) de esta fecha aún no tienen resultado final registrado.</font>",
-                st["normal"],
-            )
-        )
-        story.append(Spacer(1, 4))
 
-    # Resumen numérico del día
+    # Filtrar solo finalizados para métricas
+    finalized_daily = daily_df[daily_df["is_final"] == True] if not daily_df.empty and "is_final" in daily_df.columns else daily_df
     from report_card import summarize
 
-    daily_stats = summarize(daily_df)
-    _add_summary_block(story, daily_stats, st)
-    story.append(Spacer(1, 10))
+    daily_stats = summarize(finalized_daily)
+    _add_summary_block(story, daily_stats, st, n_pendientes)
+    story.append(Spacer(1, 8))
 
     if not daily_df.empty:
         story.append(_build_results_table(daily_df, st))
 
     # --- Sección 2: Acumulado Histórico ---
-    story.append(Spacer(1, 14))
-    story.append(HRFlowable(width="100%", thickness=0.8, color=colors.HexColor("#cbd5e1"), spaceBefore=6, spaceAfter=8))
-    story.append(Paragraph("Acumulado Histórico de Predicciones", st["h2"]))
+    story.append(Spacer(1, 10))
+    story.append(HRFlowable(width="100%", thickness=0.8, color=colors.HexColor("#cbd5e1"), spaceBefore=4, spaceAfter=6))
+    story.append(Paragraph("Acumulado Histórico de Predicciones Finalizadas", st["h2"]))
 
     cum_stats = summarize(cumulative_df)
     if cum_stats.get("n_games", 0) > 0:
@@ -325,26 +321,24 @@ def build_report_card_pdf(
         date_max = cumulative_df["game_date"].max()
         story.append(
             Paragraph(
-                f"Rango de datos evaluados: <b>{date_min}</b> a <b>{date_max}</b>",
+                f"Rango evaluado: <b>{date_min}</b> a <b>{date_max}</b>",
                 st["subtitle"],
             )
         )
         story.append(Spacer(1, 4))
 
-    _add_summary_block(story, cum_stats, st)
+    _add_summary_block(story, cum_stats, st, 0)
 
     doc.build(story)
     return output_path
 
 
-def _add_summary_block(story: list, stats: dict, st: dict) -> None:
+def _add_summary_block(story: list, stats: dict, st: dict, n_pendientes: int = 0) -> None:
     if stats.get("n_games", 0) == 0:
-        story.append(
-            Paragraph(
-                "<i>No hay partidos finalizados calificables en este rango todavía.</i>",
-                st["normal"],
-            )
-        )
+        msg = "<i>No hay partidos finalizados calificables en este rango todavía.</i>"
+        if n_pendientes > 0:
+            msg += f" <font color='#d97706'>({n_pendientes} partido(s) pendientes por jugar o terminar).</font>"
+        story.append(Paragraph(msg, st["normal"]))
         return
 
     bias = stats["bias_runs"]
@@ -355,11 +349,13 @@ def _add_summary_block(story: list, stats: dict, st: dict) -> None:
     else:
         sesgo_txt = "<font color='#16a34a'><b>(Sin sesgo significativo)</b></font>"
 
-    win_pct = stats['win_pct']
+    win_pct = stats["win_pct"]
     win_color = "#16a34a" if win_pct >= 55.0 else ("#0284c7" if win_pct >= 50.0 else "#dc2626")
 
+    pending_html = f" &nbsp;|&nbsp; <font color='#d97706'><b>{n_pendientes} Pendientes</b></font>" if n_pendientes > 0 else ""
+
     summary_html = f"""
-    Partidos evaluados: <b>{stats['n_games']}</b> &nbsp;|&nbsp;
+    Partidos finalizados evaluados: <b>{stats['n_games']}</b>{pending_html} &nbsp;|&nbsp;
     Aciertos de Ganador: <font color='{win_color}'><b>{stats['win_hits']}/{stats['n_games']} ({win_pct:.1f}%)</b></font><br/>
     Error prom. Total Carreras (MAE): <b>{stats['mae_runs']:.2f}</b> &nbsp;|&nbsp;
     Sesgo promedio: <b>{stats['bias_runs']:+.2f} carreras</b> {sesgo_txt}<br/>
@@ -370,36 +366,65 @@ def _add_summary_block(story: list, stats: dict, st: dict) -> None:
 
 def _build_results_table(df: pd.DataFrame, st: dict) -> Table:
     headers = [
-        Paragraph("Partido", st["header"]),
+        Paragraph("Enfrentamiento (V @ L)", st["header"]),
         Paragraph("Predicción Favorito", st["header"]),
-        Paragraph("Marcador<br/>Real (V-L)", st["header"]),
+        Paragraph("Marcador Real (V-L)", st["header"]),
         Paragraph("Ganador Real", st["header"]),
         Paragraph("¿Acierto?", st["header"]),
-        Paragraph("Proy.<br/>O/U", st["header"]),
-        Paragraph("Total<br/>Real", st["header"]),
+        Paragraph("Proy. O/U", st["header"]),
+        Paragraph("Total Real", st["header"]),
         Paragraph("Comparación O/U", st["header"]),
     ]
     rows = [headers]
 
     ordered = df.sort_values("game_date")
     for _, r in ordered.iterrows():
-        hit = bool(r["win_hit"])
-        hit_html = "<font color='#16a34a'><b>SÍ</b></font>" if hit else "<font color='#dc2626'><b>NO</b></font>"
+        is_final = bool(r.get("is_final", True))
 
-        matchup = f"<b>{r['away_abbr']} @ {r['home_abbr']}</b>"
-        pred_fav = f"<b>{r['predicted_winner_abbr']}</b> ({r['favorito_proba']:.0%})"
-        score = f"{int(r['away_score'])}-{int(r['home_score'])}"
-        winner = f"<b>{r['actual_winner_abbr']}</b>"
+        away_html = _team_html(r["away_name"], r.get("away_abbr"), r.get("away_team_id"))
+        home_html = _team_html(r["home_name"], r.get("home_abbr"), r.get("home_team_id"))
+        matchup = f"{away_html}<br/><font color='#64748b'><b>@</b></font> {home_html}"
+
+        pred_fav_name = r["predicted_winner"]
+        pred_fav_abbr = r.get("predicted_winner_abbr")
+        pred_fav_html = _team_html(pred_fav_name, pred_fav_abbr)
+        pred_cell = f"{pred_fav_html}<br/><font color='#0284c7'><b>{r['favorito_proba']:.0%}</b></font>"
+
+        if is_final:
+            score = f"<b>{int(r['away_score'])}-{int(r['home_score'])}</b>"
+            actual_fav_html = _team_html(r["actual_winner"], r.get("actual_winner_abbr"))
+            hit = bool(r["win_hit"])
+            hit_html = "<font color='#16a34a'><b>SÍ</b></font>" if hit else "<font color='#dc2626'><b>NO</b></font>"
+            total_actual = f"<b>{int(r['actual_total'])}</b>"
+
+            diff = float(r["ou_diff"])
+            label = r["ou_label"]
+            if label == "SOBRE":
+                ou_comp = f"<font color='#16a34a'><b>SOBRE ({diff:+.1f})</b></font>"
+            elif label == "BAJO":
+                ou_comp = f"<font color='#dc2626'><b>BAJO ({diff:+.1f})</b></font>"
+            else:
+                ou_comp = f"<font color='#0284c7'><b>IGUAL ({diff:+.1f})</b></font>"
+        else:
+            # Partido pendiente o en juego
+            status_text = r.get("status") or "Scheduled"
+            if pd.notna(r.get("away_score")) and pd.notna(r.get("home_score")):
+                score = f"{int(r['away_score'])}-{int(r['home_score'])}<br/><font color='#d97706'>({status_text})</font>"
+            else:
+                score = f"<font color='#d97706'>PENDIENTE</font>"
+            actual_fav_html = "<font color='#94a3b8'>-</font>"
+            hit_html = "<font color='#d97706'><b>PENDIENTE</b></font>"
+            total_actual = "<font color='#94a3b8'>-</font>"
+            ou_comp = "<font color='#94a3b8'>PENDIENTE</font>"
+
         ou_pred = f"{r['total_runs_pred']:.1f}"
-        total_actual = f"<b>{int(r['actual_total'])}</b>"
-        ou_comp = f"{r['ou_label']} ({r['ou_diff']:+.1f})"
 
         rows.append(
             [
                 Paragraph(matchup, st["cell"]),
-                Paragraph(pred_fav, st["cell_center"]),
+                Paragraph(pred_cell, st["cell"]),
                 Paragraph(score, st["cell_center"]),
-                Paragraph(winner, st["cell_center"]),
+                Paragraph(actual_fav_html, st["cell"]),
                 Paragraph(hit_html, st["cell_center"]),
                 Paragraph(ou_pred, st["cell_center"]),
                 Paragraph(total_actual, st["cell_center"]),
@@ -407,28 +432,27 @@ def _build_results_table(df: pd.DataFrame, st: dict) -> Table:
             ]
         )
 
-    # Ancho total: 10.2 in = 734.4 points
-    # Distribución: [1.3, 1.6, 1.0, 1.0, 0.9, 0.9, 0.9, 1.6] -> sum = 9.2 in (entra holgadamente)
+    # Ancho total: 10.2 pulgadas = 734.4 pt
     col_widths = [
-        1.4 * inch,
+        2.2 * inch,
+        2.0 * inch,
+        1.1 * inch,
         1.7 * inch,
-        1.1 * inch,
-        1.1 * inch,
-        0.9 * inch,
-        0.9 * inch,
-        0.9 * inch,
-        1.6 * inch,
+        0.8 * inch,
+        0.7 * inch,
+        0.7 * inch,
+        1.0 * inch,
     ]
 
     table = Table(rows, colWidths=col_widths, repeatRows=1)
     t_style = [
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e293b")),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0f172a")),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
         ("TOPPADDING", (0, 0), (-1, -1), 5),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ("LEFTPADDING", (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
         (
             "ROWBACKGROUNDS",
             (0, 1),

@@ -25,21 +25,17 @@ import features
 import pdf_generator
 
 
-def team_name(conn, team_id) -> str:
+def team_info(conn, team_id) -> tuple[str, str]:
     if team_id is None:
-        return "?"
-    row = conn.execute("SELECT name FROM teams WHERE team_id=?", (team_id,)).fetchone()
-    return row[0] if row and row[0] else f"Team {team_id}"
+        return ("?", "?")
+    row = conn.execute("SELECT name, abbreviation FROM teams WHERE team_id=?", (team_id,)).fetchone()
+    return (row[0], row[1]) if row else (f"Team {team_id}", "?")
 
 
 TEXT_COLUMNS = {"game_date", "status", "home_abridor_throws", "away_abridor_throws"}
 
 
 def _coerce_numeric(df: pd.DataFrame) -> pd.DataFrame:
-    """Fuerza dtype numérico en todo lo que no es texto. Con pocos
-    partidos en un solo día, una columna puede quedar TODA en None (ej.
-    sin park factor para ese venue) y pandas la infiere como 'object' en
-    vez de numérica -- XGBoost/LightGBM rechazan columnas 'object'."""
     df = df.copy()
     for col in df.columns:
         if col not in TEXT_COLUMNS and col != "game_pk":
@@ -53,16 +49,16 @@ def predict_games(conn, rows: list[dict], win_saved: dict, runs_saved: dict) -> 
 
     df = _coerce_numeric(pd.DataFrame(rows))
 
-    # reindex: mismas columnas, mismo orden que en el entrenamiento. Si
-    # falta alguna (no debería, pero por si acaso) queda en NaN, que los
-    # modelos manejan nativamente.
     X_win = df.reindex(columns=win_saved["feature_names"])
     X_runs = df.reindex(columns=runs_saved["feature_names"])
 
     df["home_win_proba"] = win_saved["model"].predict_proba(X_win)[:, 1]
     df["total_runs_pred"] = runs_saved["model"].predict(X_runs)
-    df["home_name"] = df["home_team_id"].apply(lambda t: team_name(conn, t))
-    df["away_name"] = df["away_team_id"].apply(lambda t: team_name(conn, t))
+
+    df["home_name"] = df["home_team_id"].apply(lambda t: team_info(conn, t)[0])
+    df["home_abbr"] = df["home_team_id"].apply(lambda t: team_info(conn, t)[1])
+    df["away_name"] = df["away_team_id"].apply(lambda t: team_info(conn, t)[0])
+    df["away_abbr"] = df["away_team_id"].apply(lambda t: team_info(conn, t)[1])
 
     return df
 

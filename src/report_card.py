@@ -2,25 +2,7 @@
 report_card.py
 Genera un reporte en PDF que compara las predicciones guardadas en
 `predictions_log` contra el resultado real de los partidos (games.home_score
-/ away_score), una vez que ya se jugaron.
-
-Requiere que los partidos de la fecha a calificar ya tengan status='Final'
-en la base local -- corre pipeline.py (o backfill.py) antes si hace falta
-traer los resultados de esa fecha.
-
-Cómo se califica cada partido:
-  - Ganador: se compara el favorito del modelo (home_win_proba >= 0.5 -> local,
-    si no, visitante) contra quién ganó de verdad.
-  - Over/Under: la "línea" es la propia proyección del modelo
-    (total_runs_pred). Se compara el total real contra esa proyección y se
-    marca SOBRE / BAJO / IGUAL (dentro de +/- 0.25 carreras se considera
-    IGUAL). El error y el sesgo promedio (bias) son las métricas clave para
-    saber si el modelo tiende a sobreestimar o subestimar el total.
-
-Uso:
-    python src/report_card.py                     # califica el día de ayer
-    python src/report_card.py --date 2026-08-01    # una fecha específica
-    python src/report_card.py --output reports/mi_reporte.pdf
+/ away_score). Incluye soporte para partidos pendientes y finalizados.
 """
 
 from __future__ import annotations
@@ -34,21 +16,20 @@ import pandas as pd
 import db
 import pdf_generator
 
-# Diferencia (en carreras) por debajo de la cual el total real se considera
-# "igual" a la proyección en vez de SOBRE/BAJO.
 OU_TOL = 0.25
 
 
 def fetch_predictions_with_results(
-        conn, start_date: str | None = None, end_date: str | None = None
+        conn, start_date: str | None = None, end_date: str | None = None, include_pending: bool = False
 ) -> pd.DataFrame:
-    """Última predicción guardada por partido (game_pk), solo de partidos
-    que ya tienen status='Final' y marcador cargado."""
+    """Predicciones guardadas por partido (game_pk). Si include_pending es False,
+    solo retorna partidos que ya tienen status='Final' y marcador cargado."""
     query = """
             SELECT
-                g.game_pk, g.game_date, g.home_score, g.away_score,
+                g.game_pk, g.game_date, g.status, g.home_score, g.away_score,
                 ht.name AS home_name, at.name AS away_name,
                 ht.abbreviation AS home_abbr, at.abbreviation AS away_abbr,
+                ht.team_id AS home_team_id, at.team_id AS away_team_id,
                 p.home_win_proba, p.total_runs_pred, p.predicted_at
             FROM games g
                      JOIN teams ht ON ht.team_id = g.home_team_id
@@ -60,10 +41,11 @@ def fetch_predictions_with_results(
                 ) latest ON latest.game_pk = g.game_pk
                 JOIN predictions_log p
                 ON p.game_pk = latest.game_pk AND p.predicted_at = latest.max_pred
-            WHERE g.status = 'Final' AND g.game_type = 'R'
-              AND g.home_score IS NOT NULL AND g.away_score IS NOT NULL
+            WHERE g.game_type = 'R'
             """
     params: list = []
+    if not include_pending:
+        query += " AND g.status = 'Final' AND g.home_score IS NOT NULL AND g.away_score IS NOT NULL"
     if start_date:
         query += " AND g.game_date >= ?"
         params.append(start_date)
@@ -76,7 +58,7 @@ def fetch_predictions_with_results(
 
 def count_ungraded(conn, target_date: str) -> int:
     """Partidos de la fecha con predicción guardada que TODAVÍA no están en
-    status='Final' (para avisar que faltan por calificar, no que fallaron)."""
+    status='Final' (para avisar que faltan por calificar)."""
     row = conn.execute(
         """SELECT COUNT(DISTINCT p.game_pk)
            FROM predictions_log p
@@ -91,46 +73,69 @@ def compute_grades(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df
     df = df.copy()
-    df["actual_total"] = df["home_score"] + df["away_score"]
-    df["home_won"] = df["home_score"] > df["away_score"]
+    df["is_final"] = (df["status"] == "Final") & df["home_score"].notna() & df["away_score"].notna()
 
+    df["actual_total"] = None
+    df["home_won"] = None
     df["predicted_winner"] = df.apply(
         lambda r: r["home_name"] if r["home_win_proba"] >= 0.5 else r["away_name"], axis=1
-    )
-    df["actual_winner"] = df.apply(
-        lambda r: r["home_name"] if r["home_won"] else r["away_name"], axis=1
     )
     df["predicted_winner_abbr"] = df.apply(
         lambda r: r["home_abbr"] if r["home_win_proba"] >= 0.5 else r["away_abbr"], axis=1
     )
-    df["actual_winner_abbr"] = df.apply(
-        lambda r: r["home_abbr"] if r["home_won"] else r["away_abbr"], axis=1
-    )
     df["favorito_proba"] = df["home_win_proba"].apply(lambda p: p if p >= 0.5 else 1 - p)
-    df["win_hit"] = df["predicted_winner"] == df["actual_winner"]
 
-    df["ou_diff"] = df["actual_total"] - df["total_runs_pred"]
-    df["ou_label"] = df["ou_diff"].apply(
-        lambda d: "SOBRE" if d > OU_TOL else ("BAJO" if d < -OU_TOL else "IGUAL")
-    )
+    df["actual_winner"] = None
+    df["actual_winner_abbr"] = None
+    df["win_hit"] = None
+    df["ou_diff"] = None
+    df["ou_label"] = None
+
+    final_mask = df["is_final"]
+    if final_mask.any():
+        df.loc[final_mask, "actual_total"] = df.loc[final_mask, "home_score"] + df.loc[final_mask, "away_score"]
+        df.loc[final_mask, "home_won"] = df.loc[final_mask, "home_score"] > df.loc[final_mask, "away_score"]
+
+        df.loc[final_mask, "actual_winner"] = df[final_mask].apply(
+            lambda r: r["home_name"] if r["home_won"] else r["away_name"], axis=1
+        )
+        df.loc[final_mask, "actual_winner_abbr"] = df[final_mask].apply(
+            lambda r: r["home_abbr"] if r["home_won"] else r["away_abbr"], axis=1
+        )
+        df.loc[final_mask, "win_hit"] = df[final_mask]["predicted_winner"] == df[final_mask]["actual_winner"]
+
+        df.loc[final_mask, "ou_diff"] = df.loc[final_mask, "actual_total"] - df.loc[final_mask, "total_runs_pred"]
+        df.loc[final_mask, "ou_label"] = df.loc[final_mask, "ou_diff"].apply(
+            lambda d: "SOBRE" if d > OU_TOL else ("BAJO" if d < -OU_TOL else "IGUAL")
+        )
     return df
 
 
 def summarize(df: pd.DataFrame) -> dict:
     if df.empty:
         return {"n_games": 0}
-    n = len(df)
-    win_hits = int(df["win_hit"].sum())
-    bias = df["ou_diff"].mean()
+
+    # Filtrar si hay columna is_final
+    if "is_final" in df.columns:
+        final_df = df[df["is_final"] == True]
+    else:
+        final_df = df
+
+    if final_df.empty:
+        return {"n_games": 0}
+
+    n = len(final_df)
+    win_hits = int(final_df["win_hit"].sum())
+    bias = float(final_df["ou_diff"].mean())
     return {
         "n_games": n,
         "win_hits": win_hits,
         "win_pct": win_hits / n * 100,
-        "mae_runs": df["ou_diff"].abs().mean(),
+        "mae_runs": float(final_df["ou_diff"].abs().mean()),
         "bias_runs": bias,
-        "n_over": int((df["ou_diff"] > OU_TOL).sum()),
-        "n_under": int((df["ou_diff"] < -OU_TOL).sum()),
-        "n_igual": int((df["ou_diff"].abs() <= OU_TOL).sum()),
+        "n_over": int((final_df["ou_diff"] > OU_TOL).sum()),
+        "n_under": int((final_df["ou_diff"] < -OU_TOL).sum()),
+        "n_igual": int((final_df["ou_diff"].abs() <= OU_TOL).sum()),
     }
 
 
@@ -144,24 +149,26 @@ def run(
 
     conn = db.get_connection(db_path)
 
-    daily_raw = fetch_predictions_with_results(conn, start_date=target_date, end_date=target_date)
+    # Incluir partidos finalizados y pendientes para el cuadro del día
+    daily_raw = fetch_predictions_with_results(conn, start_date=target_date, end_date=target_date, include_pending=True)
     daily_df = compute_grades(daily_raw)
     n_pendientes = count_ungraded(conn, target_date)
 
-    cumulative_raw = fetch_predictions_with_results(conn)
+    # Para el acumulado histórico, solo partidos finalizados
+    cumulative_raw = fetch_predictions_with_results(conn, include_pending=False)
     cumulative_df = compute_grades(cumulative_raw)
 
     pdf_generator.build_report_card_pdf(output_path, target_date, daily_df, cumulative_df, n_pendientes)
     conn.close()
 
     print(f"Reporte generado: {output_path}")
-    if daily_df.empty:
-        print(f"  (sin partidos calificables para {target_date} -- revisa que ya "
-              f"corriste pipeline.py/backfill.py para traer los resultados de esa fecha)")
+    final_daily = daily_df[daily_df["is_final"] == True] if not daily_df.empty else daily_df
+    if final_daily.empty:
+        print(f"  ({n_pendientes} partido(s) pendientes para {target_date})")
     else:
-        s = summarize(daily_df)
+        s = summarize(final_daily)
         print(f"  {target_date}: {s['win_hits']}/{s['n_games']} aciertos de ganador "
-              f"({s['win_pct']:.1f}%), error O/U promedio {s['mae_runs']:.2f} carreras")
+              f"({s['win_pct']:.1f}%), error O/U promedio {s['mae_runs']:.2f} carreras. Pendientes: {n_pendientes}")
     return output_path
 
 
