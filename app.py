@@ -201,7 +201,7 @@ class MLBPredictorApp(ctk.CTk):
             try:
                 conn = db.get_connection("data/mlb.db")
                 db.init_db(conn)
-                pipeline.run("data/mlb.db")
+                pipeline.run("data/mlb.db", self.target_date)
                 conn.close()
                 self.after(0, lambda: self._on_pipeline_success())
             except Exception as err:

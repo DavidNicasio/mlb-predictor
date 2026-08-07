@@ -36,19 +36,27 @@ def _safe(step_name: str, fn, *args, **kwargs):
         return None
 
 
-def run(db_path: str = "data/mlb.db") -> None:
+def run(db_path: str = "data/mlb.db", target_date: str | None = None) -> None:
     conn = db.get_connection(db_path)
     db.init_db(conn)
 
-    today = date.today()
+    if target_date:
+        today = date.fromisoformat(target_date)
+    else:
+        today = date.today()
+
     yesterday = today - timedelta(days=1)
-    today_str, yesterday_str = str(today), str(yesterday)
+    tomorrow = today + timedelta(days=1)
+    today_str, yesterday_str, tomorrow_str = str(today), str(yesterday), str(tomorrow)
 
     _safe(f"schedule+boxscores de {yesterday_str}",
           extract_schedule.run_for_date, conn, yesterday_str, True)
 
     _safe(f"schedule+probables de {today_str}",
           extract_schedule.run_for_date, conn, today_str, False)
+
+    _safe(f"schedule+probables de {tomorrow_str}",
+          extract_schedule.run_for_date, conn, tomorrow_str, False)
 
     _safe(f"statcast de {yesterday_str}",
           extract_statcast.run_for_range, conn, yesterday_str, today_str)
