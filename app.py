@@ -1,9 +1,8 @@
 """
 app.py
 Aplicación de Escritorio Interactiva (GUI Dashboard Premium) para MLB & LMB Predictor.
-Permite gestionar la actualización de datos (pipeline), generar predicciones diarias,
-calificar partidos y visualizar tarjetas de juego en Dark Mode con escudos PNG,
-barras de probabilidad, filtros de riesgo para apuestas y pestañas de Liga (MLB / LMB).
+Ofrece vista de Tabla Estilo PDF idéntica a los reportes impresos y vista de Tarjetas,
+con escudos PNG HD, barras de probabilidad, filtros de riesgo para apuestas y pestañas de Liga (MLB / LMB).
 """
 
 from __future__ import annotations
@@ -41,12 +40,13 @@ class MLBPredictorApp(ctk.CTk):
         super().__init__()
 
         self.title("Baseball Predictor Dashboard - MLB & LMB")
-        self.geometry("1180 x 820")
-        self.minsize(1000, 700)
+        self.geometry("1220 x 850")
+        self.minsize(1050, 720)
 
         self.target_date = str(date.today())
         self.selected_league = "MLB"
         self.risk_filter = "TODOS"
+        self.view_mode = "TABLA"  # "TABLA" (Estilo PDF) o "TARJETAS"
         self.search_query = ""
 
         # Caché de imágenes de escudos
@@ -55,9 +55,9 @@ class MLBPredictorApp(ctk.CTk):
         self._create_layout()
         self._load_day_summary()
 
-    def _get_team_logo(self, abbr: str | None, team_id: int | None = None) -> ctk.CTkImage | None:
+    def _get_team_logo(self, abbr: str | None, team_id: int | None = None, size: tuple[int, int] = (24, 24)) -> ctk.CTkImage | None:
         """Carga y aplica caché a las imágenes PNG de los equipos."""
-        key = abbr or str(team_id) or "default"
+        key = f"{abbr or team_id or 'default'}_{size[0]}"
         if key in self._logo_images:
             return self._logo_images[key]
 
@@ -70,7 +70,7 @@ class MLBPredictorApp(ctk.CTk):
         if img_path:
             try:
                 pil_img = Image.open(img_path)
-                ctk_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(32, 32))
+                ctk_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=size)
                 self._logo_images[key] = ctk_img
                 return ctk_img
             except Exception:
@@ -115,7 +115,7 @@ class MLBPredictorApp(ctk.CTk):
         self.tab_view.add("⚾ MLB (Grandes Ligas)")
         self.tab_view.add("🇲🇽 LMB (Liga Mexicana)")
 
-        # 3. Control Panel (Fechas y Acciones)
+        # 3. Control Panel (Fechas, Selector de Vista y Acciones)
         self.control_frame = ctk.CTkFrame(self, corner_radius=10)
         self.control_frame.pack(fill="x", padx=15, pady=5)
 
@@ -141,6 +141,21 @@ class MLBPredictorApp(ctk.CTk):
 
         btn_go_date = ctk.CTkButton(date_subframe, text="📅 Ir", width=45, command=self._on_custom_date)
         btn_go_date.pack(side="left", padx=2)
+
+        # Selector de Modo de Vista (Tabla PDF vs Tarjetas)
+        view_subframe = ctk.CTkFrame(self.control_frame, fg_color="transparent")
+        view_subframe.pack(side="left", padx=10, pady=10)
+
+        lbl_view = ctk.CTkLabel(view_subframe, text="Vista:", font=ctk.CTkFont(size=12, weight="bold"), text_color="#cbd5e1")
+        lbl_view.pack(side="left", padx=(0, 4))
+
+        self.segmented_view = ctk.CTkSegmentedButton(
+            view_subframe,
+            values=["📋 Tabla PDF", "📱 Tarjetas"],
+            command=self._on_view_mode_change,
+        )
+        self.segmented_view.set("📋 Tabla PDF")
+        self.segmented_view.pack(side="left")
 
         # Subframe Botones Acción
         action_subframe = ctk.CTkFrame(self.control_frame, fg_color="transparent")
@@ -221,8 +236,8 @@ class MLBPredictorApp(ctk.CTk):
         )
         self.btn_open_rep_pdf.pack(side="left", padx=3)
 
-        # 5. Main Scrollable Games List Area
-        self.scroll_games = ctk.CTkScrollableFrame(self, label_text="Enfrentamientos y Tarjetas de Análisis")
+        # 5. Main Scrollable Games Area
+        self.scroll_games = ctk.CTkScrollableFrame(self, label_text="Tabla de Análisis y Predicciones Diarias")
         self.scroll_games.pack(fill="both", expand=True, padx=15, pady=(4, 15))
 
     # --- Handlers & Event Listeners ---
@@ -232,6 +247,13 @@ class MLBPredictorApp(ctk.CTk):
             self.selected_league = "MLB"
         else:
             self.selected_league = "LMB"
+        self._load_day_summary()
+
+    def _on_view_mode_change(self, val: str):
+        if "Tabla" in val:
+            self.view_mode = "TABLA"
+        else:
+            self.view_mode = "TARJETAS"
         self._load_day_summary()
 
     def _set_date(self, new_date: str):
@@ -340,7 +362,7 @@ class MLBPredictorApp(ctk.CTk):
     def _open_report_pdf(self):
         self._open_pdf_file(f"reports/report_{self.target_date}.pdf")
 
-    # --- UI Rendering for Match Cards ---
+    # --- UI Rendering ---
     def _load_day_summary(self):
         for widget in self.scroll_games.winfo_children():
             widget.destroy()
@@ -348,7 +370,7 @@ class MLBPredictorApp(ctk.CTk):
         if self.selected_league == "LMB":
             lbl_lmb = ctk.CTkLabel(
                 self.scroll_games,
-                text="🇲🇽 Liga Mexicana de Béisbol (LMB)\n\nEstructura gráfica preparada para la integración de la LMB.\nPróximamente se sincronizarán los juegos de los Diablos Rojos, Sulseros, Toros y más.",
+                text="🇲🇽 Liga Mexicana de Béisbol (LMB)\n\nEstructura gráfica preparada para la integración de la LMB.\nPróximamente se sincronizarán los juegos de los Diablos Rojos, Sultanes, Toros y más.",
                 font=ctk.CTkFont(size=14),
                 text_color="#94a3b8",
             )
@@ -383,12 +405,12 @@ class MLBPredictorApp(ctk.CTk):
                 | df["away_name"].str.lower().str.contains(self.search_query)
             ]
 
-        # Renderizar cada tarjeta de partido
+        # Filtrar por nivel de riesgo
+        filtered_rows = []
         for _, r in df.iterrows():
             proba = float(r["home_win_proba"])
             fav_p = proba if proba >= 0.50 else 1.0 - proba
 
-            # Evaluación del nivel de riesgo
             if fav_p >= 0.62:
                 risk_tag = "BAJO"
                 risk_color = "#22c55e"
@@ -399,7 +421,6 @@ class MLBPredictorApp(ctk.CTk):
                 risk_tag = "ALTO"
                 risk_color = "#ef4444"
 
-            # Aplicar filtro de riesgo
             if self.risk_filter != "TODOS":
                 if "BAJO" in self.risk_filter and risk_tag != "BAJO":
                     continue
@@ -408,13 +429,162 @@ class MLBPredictorApp(ctk.CTk):
                 if "ALTO" in self.risk_filter and risk_tag != "ALTO":
                     continue
 
-            self._create_match_card(r, proba, fav_p, risk_tag, risk_color)
+            filtered_rows.append((r, proba, fav_p, risk_tag, risk_color))
+
+        if not filtered_rows:
+            lbl_empty_filter = ctk.CTkLabel(
+                self.scroll_games,
+                text=f"No hay partidos que coincidan con el filtro de riesgo '{self.risk_filter}' o la búsqueda.",
+                font=ctk.CTkFont(size=13),
+                text_color="#94a3b8",
+            )
+            lbl_empty_filter.pack(pady=30)
+            return
+
+        if self.view_mode == "TABLA":
+            self._render_pdf_table_view(filtered_rows)
+        else:
+            for item in filtered_rows:
+                self._create_match_card(*item)
+
+    def _render_pdf_table_view(self, rows_data: list):
+        """Renderiza una tabla con la misma apariencia que el documento PDF impreso."""
+        # Header de la tabla (Estilo PDF #0f172a)
+        table_header = ctk.CTkFrame(self.scroll_games, corner_radius=6, fg_color="#0f172a")
+        table_header.pack(fill="x", padx=4, pady=(4, 2))
+
+        headers = [
+            ("Hora y Enfrentamiento", 220),
+            ("Predicción Favorito", 180),
+            ("Over / Under (8.5)", 130),
+            ("Primeras 5 (F5)", 140),
+            ("Apuesta Recomendada", 180),
+            ("Clima / Viento", 110),
+            ("Riesgo", 90),
+        ]
+
+        for text, width in headers:
+            lbl = ctk.CTkLabel(
+                table_header,
+                text=text,
+                width=width,
+                font=ctk.CTkFont(size=12, weight="bold"),
+                text_color="#f8fafc",
+            )
+            lbl.pack(side="left", padx=2, pady=8)
+
+        # Filas de la tabla
+        for i, (r, proba, fav_p, risk_tag, risk_color) in enumerate(rows_data):
+            bg_color = "#1e293b" if i % 2 == 0 else "#0f172a"
+            row_frame = ctk.CTkFrame(self.scroll_games, corner_radius=4, fg_color=bg_color, border_width=1, border_color="#334155")
+            row_frame.pack(fill="x", padx=4, pady=2)
+
+            # 1. Hora y Enfrentamiento con logos
+            cell1 = ctk.CTkFrame(row_frame, width=220, fg_color="transparent")
+            cell1.pack(side="left", padx=2, pady=6)
+
+            time_str = pdf_generator._format_game_time(r.get("game_date_utc")).replace("<font color='#64748b'><b>", "").replace("</b></font><br/>", "")
+            lbl_time = ctk.CTkLabel(cell1, text=time_str or "⏰ Sin hora", font=ctk.CTkFont(size=11), text_color="#94a3b8")
+            lbl_time.pack(anchor="w")
+
+            matchup_sub = ctk.CTkFrame(cell1, fg_color="transparent")
+            matchup_sub.pack(anchor="w")
+
+            away_logo = self._get_team_logo(r.get("away_abbr"), r.get("away_team_id"), size=(20, 20))
+            if away_logo:
+                ctk.CTkLabel(matchup_sub, image=away_logo, text="").pack(side="left", padx=(0, 4))
+            ctk.CTkLabel(matchup_sub, text=r.get("away_name", "Away"), font=ctk.CTkFont(size=12, weight="bold"), text_color="#f8fafc").pack(side="left")
+
+            vs_sub = ctk.CTkFrame(cell1, fg_color="transparent")
+            vs_sub.pack(anchor="w")
+            ctk.CTkLabel(vs_sub, text="@", font=ctk.CTkFont(size=11, weight="bold"), text_color="#64748b").pack(side="left", padx=(0, 4))
+
+            home_logo = self._get_team_logo(r.get("home_abbr"), r.get("home_team_id"), size=(20, 20))
+            if home_logo:
+                ctk.CTkLabel(vs_sub, image=home_logo, text="").pack(side="left", padx=(0, 4))
+            ctk.CTkLabel(vs_sub, text=r.get("home_name", "Home"), font=ctk.CTkFont(size=12, weight="bold"), text_color="#f8fafc").pack(side="left")
+
+            # 2. Favorito
+            cell2 = ctk.CTkFrame(row_frame, width=180, fg_color="transparent")
+            cell2.pack(side="left", padx=2, pady=6)
+
+            fav_name = r["home_name"] if proba >= 0.50 else r["away_name"]
+            fav_abbr = r["home_abbr"] if proba >= 0.50 else r["away_abbr"]
+            fav_id = r.get("home_team_id") if proba >= 0.50 else r.get("away_team_id")
+            fav_logo = self._get_team_logo(fav_abbr, fav_id, size=(22, 22))
+
+            fav_sub = ctk.CTkFrame(cell2, fg_color="transparent")
+            fav_sub.pack(anchor="w")
+            if fav_logo:
+                ctk.CTkLabel(fav_sub, image=fav_logo, text="").pack(side="left", padx=(0, 4))
+            ctk.CTkLabel(fav_sub, text=fav_name, font=ctk.CTkFont(size=12, weight="bold"), text_color="#f8fafc").pack(side="left")
+
+            lbl_proba = ctk.CTkLabel(cell2, text=f"{fav_p:.1%} probabilidad", font=ctk.CTkFont(size=11, weight="bold"), text_color="#38bdf8")
+            lbl_proba.pack(anchor="w")
+
+            # 3. Over / Under (8.5)
+            cell3 = ctk.CTkFrame(row_frame, width=130, fg_color="transparent")
+            cell3.pack(side="left", padx=2, pady=6)
+
+            runs_pred = float(r["total_runs_pred"])
+            ou_dir = "OVER 8.5" if runs_pred >= 8.5 else "UNDER 8.5"
+            ou_color = "#22c55e" if "OVER" in ou_dir else "#ef4444"
+
+            ctk.CTkLabel(cell3, text=ou_dir, font=ctk.CTkFont(size=12, weight="bold"), text_color=ou_color).pack(anchor="w")
+            ctk.CTkLabel(cell3, text=f"{runs_pred:.1f} proy.", font=ctk.CTkFont(size=11), text_color="#cbd5e1").pack(anchor="w")
+
+            # 4. Primeras 5 Entradas (F5)
+            cell4 = ctk.CTkFrame(row_frame, width=140, fg_color="transparent")
+            cell4.pack(side="left", padx=2, pady=6)
+
+            f5_runs = float(r.get("f5_total_runs_pred", runs_pred * 0.55))
+            f5_dir = "OVER 4.5" if f5_runs >= 4.5 else "UNDER 4.5"
+            f5_color = "#22c55e" if "OVER" in f5_dir else "#ef4444"
+
+            ctk.CTkLabel(cell4, text=f"{f5_dir} ({f5_runs:.1f})", font=ctk.CTkFont(size=12, weight="bold"), text_color=f5_color).pack(anchor="w")
+            ctk.CTkLabel(cell4, text=f"F5: {fav_name}", font=ctk.CTkFont(size=11), text_color="#cbd5e1").pack(anchor="w")
+
+            # 5. Apuesta Recomendada
+            cell5 = ctk.CTkFrame(row_frame, width=180, fg_color="transparent")
+            cell5.pack(side="left", padx=2, pady=6)
+
+            is_final = bool(r.get("is_final", False))
+            if is_final:
+                hit = bool(r.get("win_hit", False))
+                result_text = "✅ SÍ ACIERTO" if hit else "❌ NO ACIERTO"
+                hit_color = "#22c55e" if hit else "#ef4444"
+                ctk.CTkLabel(cell5, text=f"{int(r['away_score'])}-{int(r['home_score'])}", font=ctk.CTkFont(size=12, weight="bold"), text_color="#f8fafc").pack(anchor="w")
+                ctk.CTkLabel(cell5, text=result_text, font=ctk.CTkFont(size=11, weight="bold"), text_color=hit_color).pack(anchor="w")
+            else:
+                best_prop = pdf_generator._best_prop_recommendation(r).replace("<br/>", " ").replace("<font color='#16a34a'><b>", "").replace("<font color='#dc2626'><b>", "").replace("<font color='#475569'>", "").replace("</b></font>", "").replace("</font>", "").replace('<img src="assets/logos/', '').replace('.png" width="15" height="15" valign="middle"/> &nbsp;<b>', ' ').replace('</b>', '')
+                ctk.CTkLabel(cell5, text=best_prop, font=ctk.CTkFont(size=11, weight="bold"), text_color="#f59e0b", wraplength=170).pack(anchor="w")
+
+            # 6. Clima / Viento
+            cell6 = ctk.CTkFrame(row_frame, width=110, fg_color="transparent")
+            cell6.pack(side="left", padx=2, pady=6)
+
+            weather_txt = pdf_generator._weather_html(r.get("weather_temp"), r.get("weather_wind"), r.get("weather_condition")).replace("<b>", "").replace("</b>", "").replace("<br/>", " | ").replace("<font color='#94a3b8'>", "").replace("</font>", "")
+            ctk.CTkLabel(cell6, text=weather_txt, font=ctk.CTkFont(size=11), text_color="#cbd5e1", wraplength=105).pack(anchor="w")
+
+            # 7. Nivel de Riesgo
+            cell7 = ctk.CTkFrame(row_frame, width=90, fg_color="transparent")
+            cell7.pack(side="left", padx=2, pady=6)
+
+            ctk.CTkLabel(
+                cell7,
+                text=risk_tag,
+                font=ctk.CTkFont(size=11, weight="bold"),
+                text_color=risk_color,
+                fg_color="#0f172a",
+                corner_radius=6,
+                padx=8,
+                pady=2,
+            ).pack(anchor="center")
 
     def _create_match_card(self, r: dict, proba: float, fav_p: float, risk_tag: str, risk_color: str):
         card = ctk.CTkFrame(self.scroll_games, corner_radius=10, fg_color="#1e293b", border_width=1, border_color="#334155")
         card.pack(fill="x", padx=6, pady=6)
 
-        # Header de la tarjeta (Hora + Badge de Riesgo)
         header_sub = ctk.CTkFrame(card, fg_color="transparent")
         header_sub.pack(fill="x", padx=12, pady=(8, 4))
 
@@ -434,19 +604,15 @@ class MLBPredictorApp(ctk.CTk):
         )
         lbl_risk_badge.pack(side="right")
 
-        # Body de la tarjeta (Enfrentamiento con logos)
         body_sub = ctk.CTkFrame(card, fg_color="transparent")
         body_sub.pack(fill="x", padx=12, pady=4)
 
         away_name = r.get("away_name") or "Visitante"
-        away_abbr = r.get("away_abbr")
-        away_logo = self._get_team_logo(away_abbr, r.get("away_team_id"))
+        away_logo = self._get_team_logo(r.get("away_abbr"), r.get("away_team_id"), size=(28, 28))
 
         home_name = r.get("home_name") or "Local"
-        home_abbr = r.get("home_abbr")
-        home_logo = self._get_team_logo(home_abbr, r.get("home_team_id"))
+        home_logo = self._get_team_logo(r.get("home_abbr"), r.get("home_team_id"), size=(28, 28))
 
-        # Visitante
         team_away_sub = ctk.CTkFrame(body_sub, fg_color="transparent")
         team_away_sub.pack(side="left", fill="x", expand=True)
 
@@ -459,7 +625,6 @@ class MLBPredictorApp(ctk.CTk):
         lbl_vs = ctk.CTkLabel(body_sub, text="@", font=ctk.CTkFont(size=14, weight="bold"), text_color="#64748b")
         lbl_vs.pack(side="left", padx=10)
 
-        # Local
         team_home_sub = ctk.CTkFrame(body_sub, fg_color="transparent")
         team_home_sub.pack(side="left", fill="x", expand=True)
 
@@ -469,7 +634,6 @@ class MLBPredictorApp(ctk.CTk):
         lbl_home_name = ctk.CTkLabel(team_home_sub, text=home_name, font=ctk.CTkFont(size=14, weight="bold"), text_color="#f8fafc")
         lbl_home_name.pack(side="left")
 
-        # Barra de Probabilidad del Favorito
         fav_name = home_name if proba >= 0.50 else away_name
         fav_sub = ctk.CTkFrame(card, fg_color="transparent")
         fav_sub.pack(fill="x", padx=12, pady=4)
@@ -486,7 +650,6 @@ class MLBPredictorApp(ctk.CTk):
         pbar.set(fav_p)
         pbar.pack(side="right", padx=5)
 
-        # Líneas y Proyecciones
         runs_pred = float(r["total_runs_pred"])
         ou_dir = "OVER 8.5" if runs_pred >= 8.5 else "UNDER 8.5"
         f5_runs = float(r.get("f5_total_runs_pred", runs_pred * 0.55))
@@ -500,7 +663,6 @@ class MLBPredictorApp(ctk.CTk):
         lbl_f5 = ctk.CTkLabel(lines_sub, text=f"F5: {f5_runs:.1f} carreras", font=ctk.CTkFont(size=12), text_color="#cbd5e1")
         lbl_f5.pack(side="left")
 
-        # Marcador Real o Apuesta Recomendada
         is_final = bool(r.get("is_final", False))
         if is_final:
             score_str = f"Marcador Real: {int(r['away_score'])}-{int(r['home_score'])}"
@@ -510,7 +672,7 @@ class MLBPredictorApp(ctk.CTk):
             lbl_res = ctk.CTkLabel(lines_sub, text=f"{score_str}  [{result_text}]", font=ctk.CTkFont(size=12, weight="bold"), text_color=color)
             lbl_res.pack(side="right")
         else:
-            best_prop = pdf_generator._best_prop_recommendation(r).replace("<br/>", " | ").replace("<font color='#16a34a'><b>", "").replace("<font color='#dc2626'><b>", "").replace("<font color='#475569'>", "").replace("</b></font>", "").replace("</font>", "")
+            best_prop = pdf_generator._best_prop_recommendation(r).replace("<br/>", " ").replace("<font color='#16a34a'><b>", "").replace("<font color='#dc2626'><b>", "").replace("<font color='#475569'>", "").replace("</b></font>", "").replace("</font>", "").replace('<img src="assets/logos/', '').replace('.png" width="15" height="15" valign="middle"/> &nbsp;<b>', ' ').replace('</b>', '')
             lbl_prop = ctk.CTkLabel(lines_sub, text=f"Apuesta: {best_prop}", font=ctk.CTkFont(size=12, weight="bold"), text_color="#f59e0b")
             lbl_prop.pack(side="right")
 
