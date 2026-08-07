@@ -3,7 +3,7 @@ pdf_generator.py
 Módulo de generación de reportes en PDF (Predicciones del día y Calificación histórica/Report Card)
 utilizando ReportLab con diseño moderno, nombres completos de equipos, logos PNG,
 especificación explícita de Over/Under con líneas en .5, hora de partidos, proyecciones F5,
-filtro metereológico, Nivel de Riesgo para apuestas y columna de Apuesta Recomendada (Best Prop / Team Total F5 / NRFI).
+filtro metereológico, Nivel de Riesgo para apuestas, columna Best Prop y Sección de Justificaciones con Logos.
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ from reportlab.platypus import (
     Spacer,
     Table,
     TableStyle,
+    PageBreak,
 )
 
 LOGOS_DIR = Path("assets/logos")
@@ -86,19 +87,14 @@ def _best_prop_recommendation(r: dict) -> str:
     away_fip = float(r.get("away_fip") or 4.20) if pd.notna(r.get("away_fip")) else 4.20
     proba = float(r["home_win_proba"])
 
-    # 1. Si un abridor es muy dominante (FIP <= 3.20), recomendar Team Total F5 Under 1.5 del rival
     if home_fip <= 3.20:
         away_html = _team_html(r["away_name"], r.get("away_abbr"), r.get("away_team_id"))
         return f"{away_html}<br/><font color='#dc2626'><b>F5 Under 1.5 carreras</b></font>"
     elif away_fip <= 3.20:
         home_html = _team_html(r["home_name"], r.get("home_abbr"), r.get("home_team_id"))
         return f"{home_html}<br/><font color='#dc2626'><b>F5 Under 1.5 carreras</b></font>"
-
-    # 2. Si ambos abridores tienen gran efectividad -> NRFI (Sin carreras en 1ª Entrada)
     elif home_fip <= 3.65 and away_fip <= 3.65:
         return "<font color='#16a34a'><b>NRFI</b></font><br/><font color='#475569'>Sin carrera 1ª Entrada</font>"
-
-    # 3. Si hay un favorito marcado
     elif proba >= 0.60:
         fav_html = _team_html(r["home_name"], r.get("home_abbr"), r.get("home_team_id"))
         return f"{fav_html}<br/><font color='#16a34a'><b>Victoria Directa (ML)</b></font>"
@@ -109,6 +105,30 @@ def _best_prop_recommendation(r: dict) -> str:
         direction = "OVER 8.5" if float(r["total_runs_pred"]) >= 8.5 else "UNDER 8.5"
         color = "#16a34a" if "OVER" in direction else "#dc2626"
         return f"<font color='{color}'><b>{direction} carreras</b></font>"
+
+
+def _generate_game_justification(r: dict) -> str:
+    """Genera una justificación analítica concisa (2-3 oraciones) de la predicción."""
+    proba = float(r["home_win_proba"])
+    fav_name = r["home_name"] if proba >= 0.50 else r["away_name"]
+    fav_proba = proba if proba >= 0.50 else 1.0 - proba
+    underdog_name = r["away_name"] if proba >= 0.50 else r["home_name"]
+
+    home_fip = float(r.get("home_fip") or 4.20) if pd.notna(r.get("home_fip")) else 4.20
+    away_fip = float(r.get("away_fip") or 4.20) if pd.notna(r.get("away_fip")) else 4.20
+    fav_fip = home_fip if proba >= 0.50 else away_fip
+
+    total_runs = float(r["total_runs_pred"])
+    ou_dir = "OVER" if total_runs >= 8.5 else "UNDER"
+
+    fip_txt = f"con abridor de FIP sólido ({fav_fip:.2f})" if fav_fip <= 3.80 else "apoyado por su efectividad ofensiva"
+    wind_txt = f" El viento de {r.get('weather_wind')} influye en el ambiente de juego." if r.get("weather_wind") and pd.notna(r.get("weather_wind")) else ""
+
+    text = (
+        f"<b>Justificación del Pick:</b> Se otorga la ventaja a <b>{fav_name}</b> con un <b>{fav_proba:.1%} de probabilidad de victoria</b> frente a {underdog_name}, {fip_txt}."
+        f" Se proyectan <b>{total_runs:.1f} carreras totales</b> ({ou_dir} 8.5), mostrando una inercia ofensiva favorable en las Primeras 5 Entradas.{wind_txt}"
+    )
+    return text
 
 
 def _risk_level_html(home_win_proba: float) -> str:
@@ -200,6 +220,22 @@ def _get_custom_styles():
         alignment=1,
     )
 
+    just_title = ParagraphStyle(
+        "JustTitle",
+        fontName="Helvetica-Bold",
+        fontSize=10,
+        leading=13,
+        textColor=colors.HexColor("#0f172a"),
+    )
+
+    just_body = ParagraphStyle(
+        "JustBody",
+        fontName="Helvetica",
+        fontSize=8.5,
+        leading=11.5,
+        textColor=colors.HexColor("#334155"),
+    )
+
     return {
         "title": title_style,
         "subtitle": subtitle_style,
@@ -208,6 +244,8 @@ def _get_custom_styles():
         "cell_center": cell_center,
         "header": cell_header,
         "normal": styles["Normal"],
+        "just_title": just_title,
+        "just_body": just_body,
     }
 
 
@@ -323,7 +361,6 @@ def build_daily_predictions_pdf(
             ]
         )
 
-    # Distribución amplia de 7 columnas (Total: 10.2 in = 734.4 pt)
     col_widths = [
         1.9 * inch,
         1.7 * inch,
@@ -352,6 +389,39 @@ def build_daily_predictions_pdf(
     ]
     table.setStyle(TableStyle(t_style))
     story.append(table)
+
+    # --- SECCIÓN 2: Justificaciones Analíticas por Partido (Con Logos) ---
+    story.append(PageBreak())
+    story.append(Paragraph("Análisis y Justificaciones Detalladas por Partido", st["h2"]))
+    story.append(HRFlowable(width="100%", thickness=1.0, color=colors.HexColor("#0284c7"), spaceBefore=2, spaceAfter=8))
+
+    just_rows = []
+    for _, r in df_sorted.iterrows():
+        away_html = _team_html(r["away_name"], r.get("away_abbr"), r.get("away_team_id"))
+        home_html = _team_html(r["home_name"], r.get("home_abbr"), r.get("home_team_id"))
+        matchup_title = f"{away_html} <font color='#64748b'><b>@</b></font> {home_html}"
+
+        just_text = _generate_game_justification(r)
+
+        cell_content = [
+            Paragraph(matchup_title, st["just_title"]),
+            Spacer(1, 2),
+            Paragraph(just_text, st["just_body"]),
+        ]
+        just_rows.append([cell_content])
+
+    just_table = Table(just_rows, colWidths=[10.2 * inch])
+    just_style = [
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fafc")),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+    ]
+    just_table.setStyle(TableStyle(just_style))
+    story.append(just_table)
 
     doc.build(story)
     return output_path
@@ -397,7 +467,6 @@ def build_report_card_pdf(
         )
     )
 
-    # --- Sección 1: Cuadro del Día ---
     story.append(Paragraph(f"Resumen del Día: {target_date}", st["h2"]))
 
     finalized_daily = daily_df[daily_df["is_final"] == True] if not daily_df.empty and "is_final" in daily_df.columns else daily_df
@@ -410,7 +479,6 @@ def build_report_card_pdf(
     if not daily_df.empty:
         story.append(_build_results_table(daily_df, st))
 
-    # --- Sección 2: Acumulado Histórico ---
     story.append(Spacer(1, 10))
     story.append(HRFlowable(width="100%", thickness=0.8, color=colors.HexColor("#cbd5e1"), spaceBefore=4, spaceAfter=6))
     story.append(Paragraph("Acumulado Histórico de Predicciones Finalizadas", st["h2"]))

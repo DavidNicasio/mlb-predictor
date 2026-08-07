@@ -58,6 +58,9 @@ def predict_games(conn, rows: list[dict], win_saved: dict, runs_saved: dict) -> 
     df["home_win_proba"] = win_saved["model"].predict_proba(X_win)[:, 1]
     df["total_runs_pred"] = runs_saved["model"].predict(X_runs)
 
+    import feedback_loop
+    df = feedback_loop.apply_feedback_corrections(df, conn)
+
     import features_f5
     f5_res = [
         features_f5.calculate_f5_projections(
