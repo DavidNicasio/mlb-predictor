@@ -311,7 +311,7 @@ class MLBPredictorApp(ctk.CTk):
             return
 
         self.btn_pipeline.configure(state="disabled")
-        self._update_status("⏳ Actualizando datos MLB desde la API...")
+        self._update_status("⏳ Actualizando datos MLB y calculando predicciones...")
 
         def task():
             try:
@@ -319,6 +319,10 @@ class MLBPredictorApp(ctk.CTk):
                 db.init_db(conn)
                 pipeline.run("data/mlb.db", self.target_date)
                 conn.close()
+
+                # Generar predicciones automáticamente para la fecha actualizada
+                predict_today.run(target_date=self.target_date, db_path="data/mlb.db")
+
                 self.after(0, lambda: self._on_pipeline_success())
             except Exception as err:
                 self.after(0, lambda: self._on_pipeline_error(str(err)))
@@ -327,7 +331,7 @@ class MLBPredictorApp(ctk.CTk):
 
     def _on_pipeline_success(self):
         self.btn_pipeline.configure(state="normal")
-        self._update_status("🟢 Datos actualizados correctamente")
+        self._update_status("🟢 Datos y predicciones actualizados correctamente")
         self._load_day_summary()
 
     def _on_pipeline_error(self, err_msg: str):
@@ -400,6 +404,16 @@ class MLBPredictorApp(ctk.CTk):
         try:
             raw_df = report_card.fetch_predictions_with_results(conn, start_date=self.target_date, end_date=self.target_date, include_pending=True)
             df = report_card.compute_grades(raw_df)
+
+            # Si no hay predicciones guardadas aun en predictions_log pero sí hay partidos en games, calcular en automático
+            if df.empty:
+                n_games = conn.execute("SELECT COUNT(*) FROM games WHERE game_date=? AND game_type='R'", (self.target_date,)).fetchone()[0]
+                if n_games > 0:
+                    conn.close()
+                    predict_today.run(target_date=self.target_date, db_path="data/mlb.db")
+                    conn = db.get_connection("data/mlb.db")
+                    raw_df = report_card.fetch_predictions_with_results(conn, start_date=self.target_date, end_date=self.target_date, include_pending=True)
+                    df = report_card.compute_grades(raw_df)
         except Exception:
             df = pd.DataFrame()
 
