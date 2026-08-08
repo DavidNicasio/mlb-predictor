@@ -158,7 +158,20 @@ CREATE TABLE IF NOT EXISTS predictions_log (
     total_runs_pred      REAL,
     win_model_type      TEXT,
     runs_model_type     TEXT,
+    weather_temp        INTEGER,
+    weather_wind        TEXT,
     PRIMARY KEY (game_pk, predicted_at)
+);
+
+-- Linescore: carreras por entrada (para modelo F5 y backtesting NRFI).
+-- Se backfillea desde /api/v1/game/{game_pk}/linescore.
+CREATE TABLE IF NOT EXISTS game_linescore (
+    game_pk     INTEGER NOT NULL,
+    inning      INTEGER NOT NULL,
+    home_runs   INTEGER,
+    away_runs   INTEGER,
+    PRIMARY KEY (game_pk, inning),
+    FOREIGN KEY (game_pk) REFERENCES games(game_pk)
 );
 
 CREATE INDEX IF NOT EXISTS idx_games_date ON games(game_date);
@@ -169,13 +182,18 @@ CREATE INDEX IF NOT EXISTS idx_bat_player ON boxscore_batting(player_id);
 CREATE INDEX IF NOT EXISTS idx_pitch_player ON boxscore_pitching(player_id);
 CREATE INDEX IF NOT EXISTS idx_statcast_date ON statcast_batted_balls(game_date);
 CREATE INDEX IF NOT EXISTS idx_statcast_pitcher ON statcast_batted_balls(pitcher_id, game_pk);
+CREATE INDEX IF NOT EXISTS idx_linescore_game ON game_linescore(game_pk);
 """
 
 
 def get_connection(db_path: str = "data/mlb.db") -> sqlite3.Connection:
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, timeout=60.0)
     conn.execute("PRAGMA foreign_keys = ON;")
+    try:
+        conn.execute("PRAGMA journal_mode = WAL;")
+    except sqlite3.OperationalError:
+        pass
     return conn
 
 
@@ -184,6 +202,11 @@ def init_db(conn: sqlite3.Connection) -> None:
     for col, ctype in [("game_date_utc", "TEXT"), ("weather_condition", "TEXT"), ("weather_temp", "INTEGER"), ("weather_wind", "TEXT")]:
         try:
             conn.execute(f"ALTER TABLE games ADD COLUMN {col} {ctype};")
+        except sqlite3.OperationalError:
+            pass
+    for col, ctype in [("weather_temp", "INTEGER"), ("weather_wind", "TEXT")]:
+        try:
+            conn.execute(f"ALTER TABLE predictions_log ADD COLUMN {col} {ctype};")
         except sqlite3.OperationalError:
             pass
     conn.commit()

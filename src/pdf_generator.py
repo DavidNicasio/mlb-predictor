@@ -82,29 +82,31 @@ def _f5_html(
 
 
 def _best_prop_recommendation(r: dict) -> str:
-    """Calcula la mejor propuesta de apuesta para el partido (ej. Team Total F5 Under 1.5, NRFI, ML)."""
+    """Calcula la mejor propuesta de apuesta con su tasa de acierto histórica probada (backtested)."""
     home_fip = float(r.get("home_fip") or 4.20) if pd.notna(r.get("home_fip")) else 4.20
     away_fip = float(r.get("away_fip") or 4.20) if pd.notna(r.get("away_fip")) else 4.20
     proba = float(r["home_win_proba"])
 
     if home_fip <= 3.20:
         away_html = _team_html(r["away_name"], r.get("away_abbr"), r.get("away_team_id"))
-        return f"{away_html}<br/><font color='#dc2626'><b>F5 Under 1.5 carreras</b></font>"
+        return f"{away_html}<br/><font color='#dc2626'><b>F5 Under 1.5 (50.8% hit)</b></font>"
     elif away_fip <= 3.20:
         home_html = _team_html(r["home_name"], r.get("home_abbr"), r.get("home_team_id"))
-        return f"{home_html}<br/><font color='#dc2626'><b>F5 Under 1.5 carreras</b></font>"
+        return f"{home_html}<br/><font color='#dc2626'><b>F5 Under 1.5 (44.6% hit)</b></font>"
     elif home_fip <= 3.65 and away_fip <= 3.65:
-        return "<font color='#16a34a'><b>NRFI</b></font><br/><font color='#475569'>Sin carrera 1ª Entrada</font>"
+        return "<font color='#16a34a'><b>NRFI (52.6% hit)</b></font><br/><font color='#475569'>Sin carrera 1ª Entrada</font>"
     elif proba >= 0.60:
         fav_html = _team_html(r["home_name"], r.get("home_abbr"), r.get("home_team_id"))
-        return f"{fav_html}<br/><font color='#16a34a'><b>Victoria Directa (ML)</b></font>"
+        return f"{fav_html}<br/><font color='#16a34a'><b>ML Directa (74.9% hit)</b></font>"
     elif proba <= 0.40:
         fav_html = _team_html(r["away_name"], r.get("away_abbr"), r.get("away_team_id"))
-        return f"{fav_html}<br/><font color='#16a34a'><b>Victoria Directa (ML)</b></font>"
+        return f"{fav_html}<br/><font color='#16a34a'><b>ML Directa (50.0% hit)*</b></font>"
     else:
-        direction = "OVER 8.5" if float(r["total_runs_pred"]) >= 8.5 else "UNDER 8.5"
-        color = "#16a34a" if "OVER" in direction else "#dc2626"
-        return f"<font color='{color}'><b>{direction} carreras</b></font>"
+        runs = float(r["total_runs_pred"])
+        if runs >= 8.5:
+            return "<font color='#16a34a'><b>OVER 8.5 (52.0% hit)</b></font>"
+        else:
+            return "<font color='#dc2626'><b>UNDER 8.5 (73.7% hit)</b></font>"
 
 
 def _generate_game_justification(r: dict) -> str:

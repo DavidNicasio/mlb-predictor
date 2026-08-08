@@ -27,7 +27,8 @@ import features
 # (SQLite intenta guardarlo como INTEGER/REAL y solo cae a texto si el
 # valor no es numérico -- evita el problema de que una columna quede
 # mal tipada por culpa de un None en la primera fila que se procese).
-TEXT_COLUMNS = {"game_date", "status", "home_abridor_throws", "away_abridor_throws"}
+TEXT_COLUMNS = {"game_date", "status", "home_abridor_throws", "away_abridor_throws",
+                "weather_condition", "weather_wind"}
 
 
 def distinct_game_dates(conn, start_date: str, end_date: str) -> list[str]:
@@ -78,11 +79,23 @@ def upsert_game_features(conn, rows: list[dict]) -> None:
     conn.commit()
 
 
+def _compute_date_features(db_path: str, d: str) -> list[dict]:
+    import sqlite3
+    conn = sqlite3.connect(db_path, timeout=60.0)
+    try:
+        rows = features.build_features_for_date(conn, d)
+        return [r for r in rows if r.get("status") == "Final"]
+    finally:
+        conn.close()
+
+
 def run(db_path: str = "data/mlb.db", start_date: str = "2015-01-01",
         end_date: str | None = None, export_path: str = "data/training_dataset.parquet",
-        progress_every: int = 50) -> None:
+        progress_every: int = 100, max_workers: int = 6) -> None:
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     conn = db.get_connection(db_path)
-    db.init_db(conn)  # crea índices nuevos si faltan, incluso en una base ya existente
+    db.init_db(conn)
     end_date = end_date or str(date.today())
 
     dates = distinct_game_dates(conn, start_date, end_date)
@@ -93,55 +106,82 @@ def run(db_path: str = "data/mlb.db", start_date: str = "2015-01-01",
     if processed_pks:
         print(f"{len(processed_pks)} partidos ya estaban en game_features (se saltan)")
 
-    total_nuevas = 0
-    t0 = time.time()
-
-    for i, d in enumerate(dates):
+    # Filtrar fechas que ya tengan todos sus partidos procesados
+    pending_dates = []
+    for d in dates:
         day_pks = {
             r[0] for r in conn.execute(
                 "SELECT game_pk FROM games WHERE game_date=? AND game_type='R' AND status='Final'",
                 (d,),
             )
         }
-        if day_pks and day_pks.issubset(processed_pks):
-            continue
+        if not (day_pks and day_pks.issubset(processed_pks)):
+            pending_dates.append(d)
 
-        try:
-            rows = features.build_features_for_date(conn, d)
-        except Exception as err:  # noqa: BLE001
-            print(f"  [fallo] {d}: {err}")
-            continue
+    print(f"{len(pending_dates)} fechas pendientes por procesar con {max_workers} hilos paralelos...")
 
-        rows = [r for r in rows if r["status"] == "Final"]
-        if not rows:
-            continue
+    total_nuevas = 0
+    t0 = time.time()
+    done_dates = 0
 
-        if not table_ready:
-            ensure_game_features_table(conn, rows[0])
-            table_ready = True
+    if pending_dates:
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            future_to_date = {pool.submit(_compute_date_features, db_path, d): d for d in pending_dates}
 
-        upsert_game_features(conn, rows)
-        processed_pks.update(r["game_pk"] for r in rows)
-        total_nuevas += len(rows)
+            batch_rows = []
+            for future in as_completed(future_to_date):
+                d = future_to_date[future]
+                done_dates += 1
+                try:
+                    rows = future.result()
+                    if rows:
+                        batch_rows.extend(rows)
+                except Exception as err:
+                    print(f"  [fallo] {d}: {err}")
 
-        if i == 0 and total_nuevas > 0:
-            eta_min = (time.time() - t0) * len(dates) / 60
-            print(f"  (primera fecha: {time.time()-t0:.1f}s -> estimado total ~{eta_min:.1f} min "
-                  f"para las {len(dates)} fechas)")
+                if len(batch_rows) >= 200 or done_dates == len(pending_dates):
+                    if batch_rows:
+                        if not table_ready:
+                            ensure_game_features_table(conn, batch_rows[0])
+                            table_ready = True
+                        upsert_game_features(conn, batch_rows)
+                        total_nuevas += len(batch_rows)
+                        batch_rows = []
 
-        if (i + 1) % progress_every == 0:
-            elapsed = time.time() - t0
-            print(f"  ... {i+1}/{len(dates)} fechas ({total_nuevas} filas nuevas, {elapsed:.0f}s)")
+                if done_dates % progress_every == 0 or done_dates == len(pending_dates):
+                    elapsed = time.time() - t0
+                    rate = done_dates / elapsed if elapsed > 0 else 0
+                    rem_min = (len(pending_dates) - done_dates) / rate / 60 if rate > 0 else 0
+                    print(f"  ... {done_dates}/{len(pending_dates)} fechas ({total_nuevas} filas nuevas, {elapsed:.0f}s, ~{rem_min:.1f}min restantes)")
 
     print(f"\n{total_nuevas} filas nuevas agregadas a game_features.")
 
     if table_ready:
         import pandas as pd
-        df = pd.read_sql_query("SELECT * FROM game_features", conn)
-        # Forzar numerico explicito en todo lo que no es texto: la
-        # inferencia automatica de pandas al leer de SQLite puede dejar
-        # una columna como 'object' si le tocaron muchos NULL, y XGBoost
-        # necesita dtypes numericos limpios.
+        query = """
+            SELECT g.*, 
+                   f5.home_score_f5, f5.away_score_f5, f5.total_runs_f5,
+                   CASE WHEN f5.home_score_f5 > f5.away_score_f5 THEN 1 ELSE 0 END AS home_win_f5,
+                   l1.nrfi
+            FROM game_features g
+            LEFT JOIN (
+                SELECT game_pk,
+                       SUM(home_runs) AS home_score_f5,
+                       SUM(away_runs) AS away_score_f5,
+                       SUM(home_runs + away_runs) AS total_runs_f5
+                FROM game_linescore
+                WHERE inning <= 5
+                GROUP BY game_pk
+            ) f5 ON f5.game_pk = g.game_pk
+            LEFT JOIN (
+                SELECT game_pk,
+                       CASE WHEN SUM(home_runs + away_runs) = 0 THEN 1 ELSE 0 END AS nrfi
+                FROM game_linescore
+                WHERE inning = 1
+                GROUP BY game_pk
+            ) l1 ON l1.game_pk = g.game_pk
+        """
+        df = pd.read_sql_query(query, conn)
         for col in df.columns:
             if col not in TEXT_COLUMNS and col != "game_pk":
                 df[col] = pd.to_numeric(df[col], errors="coerce")

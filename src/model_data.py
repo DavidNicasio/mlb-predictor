@@ -18,6 +18,8 @@ import pandas as pd
 
 TARGET_WIN = "home_win"
 TARGET_RUNS = "total_runs"
+TARGET_F5_RUNS = "total_runs_f5"
+TARGET_F5_WIN = "home_win_f5"
 
 TRAIN_SEASONS = set(range(2015, 2024))   # 2015-2023
 VAL_SEASONS = {2024}
@@ -26,7 +28,7 @@ TEST_SEASONS = {2025, 2026}
 # Columnas que son fuga de información directa (resultado o identificadores
 # de partido) o que decidimos no usar todavía en esta primera versión.
 DROP_COLS = {
-    "game_pk", "game_date", "status", "home_score", "away_score",
+    "game_pk", "game_date", "game_date_utc", "status", "home_score", "away_score",
     "season",  # se usa para el split, no como feature (evita atarse al año exacto)
     "venue_id",  # ya viene resumido en park_factor_runs
     "home_team_id", "away_team_id",  # identidad de equipo != talento actual;
@@ -35,6 +37,9 @@ DROP_COLS = {
                                        # más adelante con encoding apropiado)
     "home_abridor_id", "away_abridor_id",  # igual que team_id: identidad, no talento
     "home_abridor_throws", "away_abridor_throws",  # se reemplazan por la versión binaria
+    "weather_condition", "weather_wind",  # texto; ajuste post-predicción, no feature
+    "weather_temp",  # solo 0.2% cobertura; no hay dato retroactivo
+    "home_score_f5", "away_score_f5", "total_runs_f5", "home_win_f5", "nrfi",
     TARGET_WIN, TARGET_RUNS,
 }
 

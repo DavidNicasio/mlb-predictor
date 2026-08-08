@@ -61,16 +61,28 @@ def predict_games(conn, rows: list[dict], win_saved: dict, runs_saved: dict) -> 
     import feedback_loop
     df = feedback_loop.apply_feedback_corrections(df, conn)
 
-    import features_f5
-    f5_res = [
-        features_f5.calculate_f5_projections(
-            r.get("home_fip"), r.get("away_fip"),
-            r.get("home_woba_vs_hand"), r.get("away_woba_vs_hand"),
-            float(r["total_runs_pred"]), float(r["home_win_proba"])
-        ) for _, r in df.iterrows()
-    ]
-    df["f5_total_runs_pred"] = [f["f5_total_runs_pred"] for f in f5_res]
-    df["f5_home_win_proba"] = [f["f5_home_win_proba"] for f in f5_res]
+    # Cargar modelos dedicados F5 si están disponibles
+    f5_runs_path = Path("data/model_f5_runs.joblib")
+    f5_win_path = Path("data/model_f5_win.joblib")
+
+    if f5_runs_path.exists() and f5_win_path.exists():
+        f5_r_saved = joblib.load(f5_runs_path)
+        f5_w_saved = joblib.load(f5_win_path)
+        X_f5_r = df.reindex(columns=f5_r_saved["feature_names"])
+        X_f5_w = df.reindex(columns=f5_w_saved["feature_names"])
+        df["f5_total_runs_pred"] = f5_r_saved["model"].predict(X_f5_r)
+        df["f5_home_win_proba"] = f5_w_saved["model"].predict_proba(X_f5_w)[:, 1]
+    else:
+        import features_f5
+        f5_res = [
+            features_f5.calculate_f5_projections(
+                r.get("home_fip"), r.get("away_fip"),
+                r.get("home_woba_vs_hand"), r.get("away_woba_vs_hand"),
+                float(r["total_runs_pred"]), float(r["home_win_proba"])
+            ) for _, r in df.iterrows()
+        ]
+        df["f5_total_runs_pred"] = [f["f5_total_runs_pred"] for f in f5_res]
+        df["f5_home_win_proba"] = [f["f5_home_win_proba"] for f in f5_res]
 
     df["home_name"] = df["home_team_id"].apply(lambda t: team_info(conn, t)[0])
     df["home_abbr"] = df["home_team_id"].apply(lambda t: team_info(conn, t)[1])
@@ -126,13 +138,15 @@ def log_predictions(conn, df: pd.DataFrame, win_saved: dict, runs_saved: dict) -
         "total_runs_pred": float(r["total_runs_pred"]),
         "win_model_type": win_saved["model_type"],
         "runs_model_type": runs_saved["model_type"],
+        "weather_temp": int(r["weather_temp"]) if pd.notna(r.get("weather_temp")) else None,
+        "weather_wind": str(r["weather_wind"]) if pd.notna(r.get("weather_wind")) else None,
     } for _, r in df.iterrows()]
     conn.executemany(
         """INSERT OR REPLACE INTO predictions_log
            (game_pk, predicted_at, home_win_proba, total_runs_pred,
-            win_model_type, runs_model_type)
+            win_model_type, runs_model_type, weather_temp, weather_wind)
            VALUES (:game_pk, :predicted_at, :home_win_proba, :total_runs_pred,
-                   :win_model_type, :runs_model_type)""",
+                   :win_model_type, :runs_model_type, :weather_temp, :weather_wind)""",
         rows,
     )
     conn.commit()

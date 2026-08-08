@@ -57,7 +57,7 @@ def build_features_for_game(conn, game_row: dict, season: int) -> dict:
                               opponent_starter_throws=home_pitching["abridor_throws"])
 
     park_row = conn.execute(
-        "SELECT factor_runs FROM park_factors WHERE venue_id=? AND season=?",
+        "SELECT factor_runs, factor_hr, factor_hr_vs_l, factor_hr_vs_r FROM park_factors WHERE venue_id=? AND season=?",
         (venue_id, season),
     ).fetchone()
 
@@ -68,6 +68,9 @@ def build_features_for_game(conn, game_row: dict, season: int) -> dict:
         "season": season,
         "venue_id": venue_id,
         "park_factor_runs": park_row[0] if park_row else None,
+        "park_factor_hr": park_row[1] if park_row else None,
+        "park_factor_hr_vs_l": park_row[2] if park_row else None,
+        "park_factor_hr_vs_r": park_row[3] if park_row else None,
         "home_team_id": home_id,
         "away_team_id": away_id,
         "status": game_row["status"],
