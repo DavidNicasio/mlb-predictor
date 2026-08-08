@@ -47,29 +47,32 @@ def _get(url: str, params: dict | None = None) -> dict:
 # Calendario + abridores probables
 # ---------------------------------------------------------------------------
 
-def fetch_schedule(date_str: str, sport_id: int = 1) -> dict:
-    """date_str en formato YYYY-MM-DD. sport_id=1 es MLB."""
+def fetch_schedule(date_str: str, sport_id: int = 1, league_id: int | None = None) -> dict:
+    """date_str en formato YYYY-MM-DD. sport_id=1 (MLB), sport_id=23 y league_id=125 (LMB)."""
     params = {
         "sportId": sport_id,
         "date": date_str,
         "hydrate": "weather,team,linescore,probablePitcher",
     }
+    if league_id:
+        params["leagueId"] = league_id
     return _get(f"{BASE_URL}/schedule", params=params)
 
 
-def fetch_schedule_range(start_date: str, end_date: str, sport_id: int = 1) -> dict:
-    """Como fetch_schedule pero para un rango (ej. una temporada completa
-    en una sola llamada). Usado por backfill.py."""
+def fetch_schedule_range(start_date: str, end_date: str, sport_id: int = 1, league_id: int | None = None) -> dict:
+    """Como fetch_schedule pero para un rango."""
     params = {
         "sportId": sport_id,
         "startDate": start_date,
         "endDate": end_date,
         "hydrate": "weather,team,linescore,probablePitcher",
     }
+    if league_id:
+        params["leagueId"] = league_id
     return _get(f"{BASE_URL}/schedule", params=params)
 
 
-def parse_schedule(schedule_json: dict) -> tuple[list[dict], list[dict]]:
+def parse_schedule(schedule_json: dict, league: str = "MLB") -> tuple[list[dict], list[dict]]:
     """Devuelve (games_rows, probable_pitcher_rows)."""
     games_rows: list[dict] = []
     probable_rows: list[dict] = []
@@ -101,6 +104,7 @@ def parse_schedule(schedule_json: dict) -> tuple[list[dict], list[dict]]:
                     "weather_condition": w.get("condition"),
                     "weather_temp": temp_val,
                     "weather_wind": w.get("wind"),
+                    "league": league,
                 })
 
                 for side, is_home in (("home", 1), ("away", 0)):
@@ -210,11 +214,11 @@ def upsert_games(conn, rows: list[dict]) -> None:
         """INSERT OR REPLACE INTO games
            (game_pk, game_date, game_date_utc, season, game_type, status, home_team_id,
             away_team_id, home_score, away_score, venue_id, venue_name,
-            weather_condition, weather_temp, weather_wind)
+            weather_condition, weather_temp, weather_wind, league)
            VALUES (:game_pk, :game_date, :game_date_utc, :season, :game_type, :status,
                    :home_team_id, :away_team_id, :home_score, :away_score,
                    :venue_id, :venue_name,
-                   :weather_condition, :weather_temp, :weather_wind)""",
+                   :weather_condition, :weather_temp, :weather_wind, :league)""",
         rows,
     )
     conn.commit()
@@ -260,11 +264,12 @@ def upsert_pitching(conn, rows: list[dict]) -> None:
 # Orquestacion para un solo dia (usada por pipeline.py)
 # ---------------------------------------------------------------------------
 
-def run_for_date(conn, date_str: str, fetch_boxscores: bool = True) -> dict:
-    """Descarga calendario+probables de date_str, y boxscores de los
-    partidos que ya esten en estado Final ese dia."""
-    schedule_json = fetch_schedule(date_str)
-    games_rows, probable_rows = parse_schedule(schedule_json)
+def run_for_date(conn, date_str: str, fetch_boxscores: bool = True,
+                 sport_id: int = 1, league_id: int | None = None,
+                 league: str = "MLB") -> dict:
+    """Descarga calendario+probables de date_str para la liga dada."""
+    schedule_json = fetch_schedule(date_str, sport_id=sport_id, league_id=league_id)
+    games_rows, probable_rows = parse_schedule(schedule_json, league=league)
     upsert_games(conn, games_rows)
     upsert_probables(conn, probable_rows)
 
@@ -273,11 +278,14 @@ def run_for_date(conn, date_str: str, fetch_boxscores: bool = True) -> dict:
         for g in games_rows:
             if g["status"] == "Final":
                 time.sleep(0.5)  # ritmo cortes, no hay limite oficial publicado
-                box_json = fetch_boxscore(g["game_pk"])
-                batting_rows, pitching_rows = parse_boxscore(box_json, g["game_pk"])
-                upsert_batting(conn, batting_rows)
-                upsert_pitching(conn, pitching_rows)
-                n_boxscores += 1
+                try:
+                    box_json = fetch_boxscore(g["game_pk"])
+                    batting_rows, pitching_rows = parse_boxscore(box_json, g["game_pk"])
+                    upsert_batting(conn, batting_rows)
+                    upsert_pitching(conn, pitching_rows)
+                    n_boxscores += 1
+                except Exception as err:
+                    print(f"  [fallo boxscore {g['game_pk']}]: {err}")
 
     return {
         "games": len(games_rows),

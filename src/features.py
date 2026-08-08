@@ -87,12 +87,18 @@ def build_features_for_game(conn, game_row: dict, season: int) -> dict:
     return row
 
 
-def build_features_for_date(conn, target_date: str, season: int | None = None) -> list[dict]:
+def build_features_for_date(conn, target_date: str, season: int | None = None, league: str | None = None) -> list[dict]:
     season = season or int(target_date[:4])
     cols = [d[0] for d in conn.execute("SELECT * FROM games LIMIT 0").description]
-    games = conn.execute(
-        "SELECT * FROM games WHERE game_date = ? AND game_type = 'R' ORDER BY game_date_utc ASC, game_pk ASC", (target_date,)
-    ).fetchall()
+    
+    query = "SELECT * FROM games WHERE game_date = ?"
+    params: list = [target_date]
+    if league:
+        query += " AND COALESCE(league, 'MLB') = ?"
+        params.append(league)
+    query += " ORDER BY game_date_utc ASC, game_pk ASC"
+    
+    games = conn.execute(query, params).fetchall()
 
     rows = []
     for g in games:

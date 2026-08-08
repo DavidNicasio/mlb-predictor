@@ -306,12 +306,8 @@ class MLBPredictorApp(ctk.CTk):
 
     # --- Worker Threads ---
     def _run_pipeline_thread(self):
-        if self.selected_league == "LMB":
-            messagebox.showinfo("LMB Módulo", "Próximamente: Integración de extracción directa de la Liga Mexicana de Béisbol (LMB). Por ahora se encuentra activo el módulo MLB.")
-            return
-
         self.btn_pipeline.configure(state="disabled")
-        self._update_status("⏳ Actualizando datos MLB y calculando predicciones...")
+        self._update_status(f"⏳ Actualizando datos {self.selected_league} y calculando predicciones...")
 
         def task():
             try:
@@ -320,8 +316,8 @@ class MLBPredictorApp(ctk.CTk):
                 pipeline.run("data/mlb.db", self.target_date)
                 conn.close()
 
-                # Generar predicciones automáticamente para la fecha actualizada
-                predict_today.run(target_date=self.target_date, db_path="data/mlb.db")
+                # Generar predicciones automáticamente para la fecha y liga actualizada
+                predict_today.run(target_date=self.target_date, db_path="data/mlb.db", league=self.selected_league)
 
                 self.after(0, lambda: self._on_pipeline_success())
             except Exception as err:
@@ -340,12 +336,9 @@ class MLBPredictorApp(ctk.CTk):
         messagebox.showerror("Error Pipeline", f"No se pudieron actualizar los datos:\n{err_msg}")
 
     def _run_predict(self):
-        if self.selected_league == "LMB":
-            messagebox.showinfo("LMB Módulo", "Las predicciones de la LMB estarán disponibles al integrar las fuentes de datos oficiales.")
-            return
         try:
-            self._update_status("⏳ Generando predicciones y PDF...")
-            predict_today.run(target_date=self.target_date, db_path="data/mlb.db")
+            self._update_status(f"⏳ Generando predicciones {self.selected_league} y PDF...")
+            predict_today.run(target_date=self.target_date, db_path="data/mlb.db", league=self.selected_league)
             self._update_status("🟢 Predicciones y PDF generados")
             self._load_day_summary()
             self._open_predictions_pdf()
@@ -354,9 +347,6 @@ class MLBPredictorApp(ctk.CTk):
             messagebox.showerror("Error Predicciones", str(err))
 
     def _run_report(self):
-        if self.selected_league == "LMB":
-            messagebox.showinfo("LMB Módulo", "Report Card disponible para MLB.")
-            return
         try:
             self._update_status("⏳ Calificando resultados y generando PDF...")
             report_card.run(target_date=self.target_date, db_path="data/mlb.db")
@@ -378,7 +368,8 @@ class MLBPredictorApp(ctk.CTk):
             messagebox.showerror("Error al abrir PDF", f"No se pudo abrir {pdf_path}:\n{err}")
 
     def _open_predictions_pdf(self):
-        self._open_pdf_file(f"reports/predictions_{self.target_date}.pdf")
+        prefix = f"predictions_{self.selected_league.lower()}_"
+        self._open_pdf_file(f"reports/{prefix}{self.target_date}.pdf")
 
     def _open_report_pdf(self):
         self._open_pdf_file(f"reports/report_{self.target_date}.pdf")
@@ -388,31 +379,32 @@ class MLBPredictorApp(ctk.CTk):
         for widget in self.scroll_games.winfo_children():
             widget.destroy()
 
-        if self.selected_league == "LMB":
-            lbl_lmb = ctk.CTkLabel(
-                self.scroll_games,
-                text="🇲🇽 Liga Mexicana de Béisbol (LMB)\n\nEstructura gráfica preparada para la integración de la LMB.\nPróximamente se sincronizarán los juegos de los Diablos Rojos, Sultanes, Toros y más.",
-                font=ctk.CTkFont(size=14),
-                text_color=("#64748b", "#94a3b8"),
-            )
-            lbl_lmb.pack(pady=60)
-            return
-
         conn = db.get_connection("data/mlb.db")
         db.init_db(conn)
 
+        league = self.selected_league
         try:
-            raw_df = report_card.fetch_predictions_with_results(conn, start_date=self.target_date, end_date=self.target_date, include_pending=True)
+            raw_df = report_card.fetch_predictions_with_results(
+                conn, start_date=self.target_date, end_date=self.target_date,
+                include_pending=True, league=league
+            )
             df = report_card.compute_grades(raw_df)
 
-            # Si no hay predicciones guardadas aun en predictions_log pero sí hay partidos en games, calcular en automático
+            # Si no hay predicciones guardadas aun en predictions_log pero sí hay partidos en games para la liga seleccionada, calcular en automático
             if df.empty:
-                n_games = conn.execute("SELECT COUNT(*) FROM games WHERE game_date=? AND game_type='R'", (self.target_date,)).fetchone()[0]
+                n_games = conn.execute(
+                    "SELECT COUNT(*) FROM games WHERE game_date=? AND COALESCE(league, 'MLB')=?",
+                    (self.target_date, league)
+                ).fetchone()[0]
+
                 if n_games > 0:
                     conn.close()
-                    predict_today.run(target_date=self.target_date, db_path="data/mlb.db")
+                    predict_today.run(target_date=self.target_date, db_path="data/mlb.db", league=league)
                     conn = db.get_connection("data/mlb.db")
-                    raw_df = report_card.fetch_predictions_with_results(conn, start_date=self.target_date, end_date=self.target_date, include_pending=True)
+                    raw_df = report_card.fetch_predictions_with_results(
+                        conn, start_date=self.target_date, end_date=self.target_date,
+                        include_pending=True, league=league
+                    )
                     df = report_card.compute_grades(raw_df)
         except Exception:
             df = pd.DataFrame()
@@ -422,7 +414,7 @@ class MLBPredictorApp(ctk.CTk):
         if df.empty:
             lbl_empty = ctk.CTkLabel(
                 self.scroll_games,
-                text=f"No hay registros o predicciones previas para {self.target_date}.\nHaz clic en '📊 Predicciones (PDF)' para calcular todos los partidos.",
+                text=f"No hay registros o predicciones previas de {league} para {self.target_date}.\nHaz clic en '🔄 Actualizar Datos' o '📊 Predicciones (PDF)' para sincronizar los partidos.",
                 font=ctk.CTkFont(size=14),
                 text_color=("#64748b", "#94a3b8"),
             )

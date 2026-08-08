@@ -20,14 +20,15 @@ OU_TOL = 0.25
 
 
 def fetch_predictions_with_results(
-        conn, start_date: str | None = None, end_date: str | None = None, include_pending: bool = False
+        conn, start_date: str | None = None, end_date: str | None = None,
+        include_pending: bool = False, league: str | None = None
 ) -> pd.DataFrame:
     """Predicciones guardadas por partido (game_pk). Si include_pending es False,
     solo retorna partidos que ya tienen status='Final' y marcador cargado."""
     query = """
             SELECT
                 g.game_pk, g.game_date, g.game_date_utc, g.status, g.home_score, g.away_score,
-                g.weather_condition, g.weather_temp, g.weather_wind,
+                g.weather_condition, g.weather_temp, g.weather_wind, COALESCE(g.league, 'MLB') AS league,
                 ht.name AS home_name, at.name AS away_name,
                 ht.abbreviation AS home_abbr, at.abbreviation AS away_abbr,
                 ht.team_id AS home_team_id, at.team_id AS away_team_id,
@@ -42,9 +43,12 @@ def fetch_predictions_with_results(
                 ) latest ON latest.game_pk = g.game_pk
                 JOIN predictions_log p
                 ON p.game_pk = latest.game_pk AND p.predicted_at = latest.max_pred
-            WHERE g.game_type = 'R'
+            WHERE 1=1
             """
     params: list = []
+    if league:
+        query += " AND COALESCE(g.league, 'MLB') = ?"
+        params.append(league)
     if not include_pending:
         query += " AND g.status = 'Final' AND g.home_score IS NOT NULL AND g.away_score IS NOT NULL"
     if start_date:

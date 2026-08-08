@@ -157,14 +157,16 @@ def log_predictions(conn, df: pd.DataFrame, win_saved: dict, runs_saved: dict) -
 def run(target_date: str | None = None, db_path: str = "data/mlb.db",
         win_model_path: str = "data/model_win.joblib",
         runs_model_path: str = "data/model_runs.joblib",
-        pdf_output: str | None = None) -> pd.DataFrame:
+        pdf_output: str | None = None,
+        league: str | None = None) -> pd.DataFrame:
     target_date = target_date or str(date.today())
-    pdf_output = pdf_output or f"reports/predictions_{target_date}.pdf"
+    prefix = f"predictions_{league.lower()}_" if league else "predictions_"
+    pdf_output = pdf_output or f"reports/{prefix}{target_date}.pdf"
 
     conn = db.get_connection(db_path)
     db.init_db(conn)
 
-    rows = features.build_features_for_date(conn, target_date)
+    rows = features.build_features_for_date(conn, target_date, league=league)
     win_saved = joblib.load(win_model_path)
     runs_saved = joblib.load(runs_model_path)
 

@@ -21,32 +21,34 @@ def fetch_teams(sport_id: int = 1) -> dict:
     return resp.json()
 
 
-def parse_teams(teams_json: dict) -> list[dict]:
+def parse_teams(teams_json: dict, league: str = "MLB") -> list[dict]:
     rows = []
     for t in teams_json.get("teams", []):
         rows.append({
             "team_id": t["id"],
             "name": t.get("name"),
             "abbreviation": t.get("abbreviation"),
+            "league": league,
         })
     return rows
 
 
 def upsert_teams(conn, rows: list[dict]) -> None:
     conn.executemany(
-        """INSERT OR REPLACE INTO teams (team_id, name, abbreviation)
-           VALUES (:team_id, :name, :abbreviation)""",
+        """INSERT OR REPLACE INTO teams (team_id, name, abbreviation, league)
+           VALUES (:team_id, :name, :abbreviation, :league)""",
         rows,
     )
     conn.commit()
 
 
 def run(conn) -> int:
-    teams_json = fetch_teams()
-    rows = parse_teams(teams_json)
-    upsert_teams(conn, rows)
-    print(f"[extract_teams] {len(rows)} equipos cargados")
-    return len(rows)
+    mlb_rows = parse_teams(fetch_teams(sport_id=1), league="MLB")
+    lmb_rows = parse_teams(fetch_teams(sport_id=23), league="LMB")
+    all_rows = mlb_rows + lmb_rows
+    upsert_teams(conn, all_rows)
+    print(f"[extract_teams] {len(all_rows)} equipos cargados ({len(mlb_rows)} MLB, {len(lmb_rows)} LMB)")
+    return len(all_rows)
 
 
 if __name__ == "__main__":

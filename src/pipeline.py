@@ -49,14 +49,25 @@ def run(db_path: str = "data/mlb.db", target_date: str | None = None) -> None:
     tomorrow = today + timedelta(days=1)
     today_str, yesterday_str, tomorrow_str = str(today), str(yesterday), str(tomorrow)
 
-    _safe(f"schedule+boxscores de {yesterday_str}",
-          extract_schedule.run_for_date, conn, yesterday_str, True)
+    # --- MLB (sport_id=1) ---
+    _safe(f"MLB schedule+boxscores de {yesterday_str}",
+          extract_schedule.run_for_date, conn, yesterday_str, True, 1, None, "MLB")
 
-    _safe(f"schedule+probables de {today_str}",
-          extract_schedule.run_for_date, conn, today_str, False)
+    _safe(f"MLB schedule+probables de {today_str}",
+          extract_schedule.run_for_date, conn, today_str, False, 1, None, "MLB")
 
-    _safe(f"schedule+probables de {tomorrow_str}",
-          extract_schedule.run_for_date, conn, tomorrow_str, False)
+    _safe(f"MLB schedule+probables de {tomorrow_str}",
+          extract_schedule.run_for_date, conn, tomorrow_str, False, 1, None, "MLB")
+
+    # --- LMB (sport_id=23, league_id=125) ---
+    _safe(f"LMB schedule+boxscores de {yesterday_str}",
+          extract_schedule.run_for_date, conn, yesterday_str, True, 23, 125, "LMB")
+
+    _safe(f"LMB schedule+probables de {today_str}",
+          extract_schedule.run_for_date, conn, today_str, False, 23, 125, "LMB")
+
+    _safe(f"LMB schedule+probables de {tomorrow_str}",
+          extract_schedule.run_for_date, conn, tomorrow_str, False, 23, 125, "LMB")
 
     _safe(f"statcast de {yesterday_str}",
           extract_statcast.run_for_range, conn, yesterday_str, today_str)
