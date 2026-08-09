@@ -39,7 +39,6 @@ jobs:
           mkdir -p ../predictions
           python report_card.py --db-path ../data/mlb_recent.db
           python predict_today.py --db-path ../data/mlb_recent.db --league MLB | tee "../predictions/mlb_$(date -u +'%Y-%m-%d').txt"
-          python predict_today.py --db-path ../data/mlb_recent.db --league LMB | tee "../predictions/lmb_$(date -u +'%Y-%m-%d').txt"
 
       - name: Commit y push de la base y predicciones actualizadas
         run: |

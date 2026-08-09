@@ -336,6 +336,13 @@ class MLBPredictorApp(ctk.CTk):
         messagebox.showerror("Error Pipeline", f"No se pudieron actualizar los datos:\n{err_msg}")
 
     def _run_predict(self):
+        if self.selected_league == "LMB":
+            messagebox.showinfo(
+                "Módulo LMB",
+                "Las predicciones probabilísticas automáticas para la LMB están deshabilitadas por política del sistema hasta entrenar y validar un modelo específicamente con historial de la LMB."
+            )
+            return
+
         self.btn_predict.configure(state="disabled")
         self._update_status(f"⏳ Generando predicciones {self.selected_league} y PDF...")
 
@@ -416,8 +423,8 @@ class MLBPredictorApp(ctk.CTk):
             )
             df = report_card.compute_grades(raw_df)
 
-            # Si no hay predicciones guardadas aun en predictions_log pero sí hay partidos en games para la liga seleccionada, calcular en automático
-            if df.empty:
+            # Si no hay predicciones guardadas aun en predictions_log pero sí hay partidos en games para la liga seleccionada, calcular en automático (solo MLB)
+            if df.empty and league == "MLB":
                 n_games = conn.execute(
                     "SELECT COUNT(*) FROM games WHERE game_date=? AND COALESCE(league, 'MLB')=?",
                     (self.target_date, league)
@@ -438,9 +445,15 @@ class MLBPredictorApp(ctk.CTk):
         conn.close()
 
         if df.empty:
+            msg = (
+                f"🇲🇽 Liga Mexicana de Béisbol (LMB)\n\nExtracción de datos y partidos en vivo activada para la LMB.\n"
+                f"Las predicciones probabilísticas están deshabilitadas hasta contar con un modelo entrenado formalmente con historial de la LMB."
+                if league == "LMB" else
+                f"No hay registros o predicciones previas de {league} para {self.target_date}.\nHaz clic en '🔄 Actualizar Datos' o '📊 Predicciones (PDF)' para sincronizar los partidos."
+            )
             lbl_empty = ctk.CTkLabel(
                 self.scroll_games,
-                text=f"No hay registros o predicciones previas de {league} para {self.target_date}.\nHaz clic en '🔄 Actualizar Datos' o '📊 Predicciones (PDF)' para sincronizar los partidos.",
+                text=msg,
                 font=ctk.CTkFont(size=14),
                 text_color=("#64748b", "#94a3b8"),
             )
