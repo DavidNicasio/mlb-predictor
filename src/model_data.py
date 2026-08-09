@@ -39,6 +39,7 @@ DROP_COLS = {
     "home_abridor_throws", "away_abridor_throws",  # se reemplazan por la versión binaria
     "weather_condition", "weather_wind",  # texto; ajuste post-predicción, no feature
     "weather_temp",  # solo 0.2% cobertura; no hay dato retroactivo
+    "park_factor_hr", "park_factor_hr_vs_l", "park_factor_hr_vs_r",  # no mejoró métrica en val (2024)
     "home_score_f5", "away_score_f5", "total_runs_f5", "home_win_f5", "nrfi",
     TARGET_WIN, TARGET_RUNS,
 }
