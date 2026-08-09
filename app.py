@@ -336,26 +336,52 @@ class MLBPredictorApp(ctk.CTk):
         messagebox.showerror("Error Pipeline", f"No se pudieron actualizar los datos:\n{err_msg}")
 
     def _run_predict(self):
-        try:
-            self._update_status(f"⏳ Generando predicciones {self.selected_league} y PDF...")
-            predict_today.run(target_date=self.target_date, db_path="data/mlb.db", league=self.selected_league)
-            self._update_status("🟢 Predicciones y PDF generados")
-            self._load_day_summary()
-            self._open_predictions_pdf()
-        except Exception as err:
-            self._update_status("🔴 Error en predicciones")
-            messagebox.showerror("Error Predicciones", str(err))
+        self.btn_predict.configure(state="disabled")
+        self._update_status(f"⏳ Generando predicciones {self.selected_league} y PDF...")
+
+        def task():
+            try:
+                predict_today.run(target_date=self.target_date, db_path="data/mlb.db", league=self.selected_league)
+                self.after(0, lambda: self._on_predict_success())
+            except Exception as err:
+                self.after(0, lambda: self._on_predict_error(str(err)))
+
+        threading.Thread(target=task, daemon=True).start()
+
+    def _on_predict_success(self):
+        self.btn_predict.configure(state="normal")
+        self._update_status("🟢 Predicciones y PDF generados")
+        self._load_day_summary()
+        self._open_predictions_pdf()
+
+    def _on_predict_error(self, err_msg: str):
+        self.btn_predict.configure(state="normal")
+        self._update_status("🔴 Error en predicciones")
+        messagebox.showerror("Error Predicciones", err_msg)
 
     def _run_report(self):
-        try:
-            self._update_status("⏳ Calificando resultados y generando PDF...")
-            report_card.run(target_date=self.target_date, db_path="data/mlb.db")
-            self._update_status("🟢 Report Card generado")
-            self._load_day_summary()
-            self._open_report_pdf()
-        except Exception as err:
-            self._update_status("🔴 Error en Report Card")
-            messagebox.showerror("Error Report Card", str(err))
+        self.btn_report.configure(state="disabled")
+        self._update_status("⏳ Calificando resultados y generando PDF...")
+
+        def task():
+            try:
+                report_card.run(target_date=self.target_date, db_path="data/mlb.db")
+                self.after(0, lambda: self._on_report_success())
+            except Exception as err:
+                self.after(0, lambda: self._on_report_error(str(err)))
+
+        threading.Thread(target=task, daemon=True).start()
+
+    def _on_report_success(self):
+        self.btn_report.configure(state="normal")
+        self._update_status("🟢 Report Card generado")
+        self._load_day_summary()
+        self._open_report_pdf()
+
+    def _on_report_error(self, err_msg: str):
+        self.btn_report.configure(state="normal")
+        self._update_status("🔴 Error en Report Card")
+        messagebox.showerror("Error Report Card", err_msg)
 
     def _open_pdf_file(self, pdf_path: str):
         p = Path(pdf_path)

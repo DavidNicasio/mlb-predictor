@@ -14,8 +14,11 @@ HEADERS = {"User-Agent": "personal-mlb-model/1.0 (uso no comercial, contacto: tu
 TIMEOUT = 20
 
 
-def fetch_teams(sport_id: int = 1) -> dict:
-    resp = requests.get(f"{BASE_URL}/teams", params={"sportId": sport_id},
+def fetch_teams(sport_id: int = 1, league_id: int | None = None) -> dict:
+    params = {"sportId": sport_id}
+    if league_id:
+        params["leagueId"] = league_id
+    resp = requests.get(f"{BASE_URL}/teams", params=params,
                         headers=HEADERS, timeout=TIMEOUT)
     resp.raise_for_status()
     return resp.json()
@@ -44,7 +47,7 @@ def upsert_teams(conn, rows: list[dict]) -> None:
 
 def run(conn) -> int:
     mlb_rows = parse_teams(fetch_teams(sport_id=1), league="MLB")
-    lmb_rows = parse_teams(fetch_teams(sport_id=23), league="LMB")
+    lmb_rows = parse_teams(fetch_teams(league_id=125), league="LMB")
     all_rows = mlb_rows + lmb_rows
     upsert_teams(conn, all_rows)
     print(f"[extract_teams] {len(all_rows)} equipos cargados ({len(mlb_rows)} MLB, {len(lmb_rows)} LMB)")
