@@ -26,12 +26,32 @@ def run_backtest(db_path: str = "data/mlb.db") -> pd.DataFrame:
     conn = db.get_connection(db_path)
     db.init_db(conn)
 
-    # 1. Cargar partidos con resultado de games, linescore y FIPs de abridores
-    query = """
+    # 1. Cargar predicciones DEDUPLICADAS de predictions_log (última predicción por partido)
+    query_pred = """
         SELECT
             g.game_pk,
             p.home_win_proba,
             p.total_runs_pred,
+            g.game_date,
+            g.home_score,
+            g.away_score,
+            (g.home_score + g.away_score) AS actual_total,
+            CASE WHEN g.home_score > g.away_score THEN 1 ELSE 0 END AS home_won
+        FROM games g
+        JOIN (
+            SELECT game_pk, MAX(predicted_at) AS max_pred
+            FROM predictions_log
+            GROUP BY game_pk
+        ) latest ON latest.game_pk = g.game_pk
+        JOIN predictions_log p ON p.game_pk = latest.game_pk AND p.predicted_at = latest.max_pred
+        WHERE g.status = 'Final' AND g.home_score IS NOT NULL AND g.away_score IS NOT NULL
+    """
+    pred_df = pd.read_sql_query(query_pred, conn)
+
+    # 2. Cargar datos históricos de games, linescore y FIPs de abridores
+    query_hist = """
+        SELECT
+            g.game_pk,
             g.game_date,
             g.home_score,
             g.away_score,
@@ -45,7 +65,6 @@ def run_backtest(db_path: str = "data/mlb.db") -> pd.DataFrame:
             f5.away_f5
         FROM games g
         JOIN game_features gf ON gf.game_pk = g.game_pk
-        LEFT JOIN predictions_log p ON p.game_pk = g.game_pk
         LEFT JOIN game_linescore l1 ON l1.game_pk = g.game_pk AND l1.inning = 1
         LEFT JOIN (
             SELECT game_pk,
@@ -57,16 +76,19 @@ def run_backtest(db_path: str = "data/mlb.db") -> pd.DataFrame:
         ) f5 ON f5.game_pk = g.game_pk
         WHERE g.status = 'Final' AND g.game_type = 'R' AND g.home_score IS NOT NULL AND g.away_score IS NOT NULL
     """
-    df = pd.read_sql_query(query, conn)
+    hist_df = pd.read_sql_query(query_hist, conn)
     conn.close()
 
-    if df.empty:
-        print("No hay partidos finalizados con predicciones en predictions_log para hacer backtesting.")
+    if pred_df.empty and hist_df.empty:
+        print("No hay partidos para evaluar.")
         return pd.DataFrame()
 
-    total_games = len(df)
+    total_pred_games = len(pred_df)
+    total_hist_games = len(hist_df)
     print(f"\n========================================================")
-    print(f"  BACKTESTING DE REGLAS DE RECOMENDACIÓN ({total_games} partidos)")
+    print(f"  BACKTESTING DE REGLAS DE RECOMENDACIÓN")
+    print(f"  - Partidos con predicción previa única (ML/Total Runs): {total_pred_games}")
+    print(f"  - Partidos con datos históricos FIP/Linescore: {total_hist_games}")
     print(f"========================================================\n")
 
     results = []
@@ -74,7 +96,6 @@ def run_backtest(db_path: str = "data/mlb.db") -> pd.DataFrame:
     # ----------------------------------------------------
     # Regla 1: Victoria Directa Local (Proba >= 60%)
     # ----------------------------------------------------
-    pred_df = df[df["home_win_proba"].notna()]
     base_home_win = float((pred_df["home_won"] == 1).mean()) if len(pred_df) > 0 else 0.50
 
     r1_df = pred_df[pred_df["home_win_proba"] >= 0.60]
@@ -160,7 +181,7 @@ def run_backtest(db_path: str = "data/mlb.db") -> pd.DataFrame:
     # ----------------------------------------------------
     # Regla 5: NRFI (Ambos FIP <= 3.65)
     # ----------------------------------------------------
-    linescore_df = df[df["inn1_home"].notna() & df["inn1_away"].notna()]
+    linescore_df = hist_df[hist_df["inn1_home"].notna() & hist_df["inn1_away"].notna()]
     n_linescore = len(linescore_df)
     if n_linescore > 0:
         base_nrfi = float(((linescore_df["inn1_home"] == 0) & (linescore_df["inn1_away"] == 0)).mean())
@@ -185,7 +206,7 @@ def run_backtest(db_path: str = "data/mlb.db") -> pd.DataFrame:
     # ----------------------------------------------------
     # Regla 6: F5 Under 1.5 (Abridor Rival FIP <= 3.20)
     # ----------------------------------------------------
-    f5_df = df[df["away_f5"].notna() & df["home_f5"].notna()]
+    f5_df = hist_df[hist_df["away_f5"].notna() & hist_df["home_f5"].notna()]
     if len(f5_df) > 0:
         base_f5_away = float((f5_df["away_f5"] <= 1).mean())
         base_f5_home = float((f5_df["home_f5"] <= 1).mean())
