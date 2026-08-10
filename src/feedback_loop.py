@@ -47,19 +47,24 @@ def get_feedback_metrics(conn, window_days: int = WINDOW_DAYS) -> dict:
     """
     query = f"""
         SELECT
-            p.game_pk,
+            g.game_pk,
             p.home_win_proba,
             p.total_runs_pred,
             g.home_score,
             g.away_score,
             (g.home_score + g.away_score) AS actual_total,
             CASE WHEN g.home_score > g.away_score THEN 1 ELSE 0 END AS home_won
-        FROM predictions_log p
-        JOIN games g ON g.game_pk = p.game_pk
+        FROM games g
+        JOIN (
+            SELECT game_pk, MAX(predicted_at) AS max_pred
+            FROM predictions_log
+            WHERE predicted_at >= date('now', '-{window_days} days')
+            GROUP BY game_pk
+        ) latest ON latest.game_pk = g.game_pk
+        JOIN predictions_log p ON p.game_pk = latest.game_pk AND p.predicted_at = latest.max_pred
         WHERE g.status = 'Final'
               AND g.home_score IS NOT NULL
               AND g.away_score IS NOT NULL
-              AND p.predicted_at >= date('now', '-{window_days} days')
     """
     try:
         df = pd.read_sql_query(query, conn)

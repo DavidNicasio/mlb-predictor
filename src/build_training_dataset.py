@@ -57,6 +57,16 @@ def ensure_game_features_table(conn, sample_row: dict) -> None:
         cols.append(f'"{k}" {col_type}')
     ddl = f'CREATE TABLE IF NOT EXISTS game_features (game_pk INTEGER PRIMARY KEY, {", ".join(cols)})'
     conn.execute(ddl)
+    
+    # Asegurar que cualquier columna nueva (ej. clima/viento) se agregue a la tabla existente
+    existing_cols = {r[1] for r in conn.execute("PRAGMA table_info(game_features)").fetchall()}
+    for k in sample_row.keys():
+        if k not in existing_cols:
+            col_type = "TEXT" if k in TEXT_COLUMNS else "NUMERIC"
+            try:
+                conn.execute(f'ALTER TABLE game_features ADD COLUMN "{k}" {col_type}')
+            except Exception:
+                pass
     conn.commit()
 
 

@@ -37,8 +37,7 @@ DROP_COLS = {
                                        # más adelante con encoding apropiado)
     "home_abridor_id", "away_abridor_id",  # igual que team_id: identidad, no talento
     "home_abridor_throws", "away_abridor_throws",  # se reemplazan por la versión binaria
-    "weather_condition", "weather_wind",  # texto; ajuste post-predicción, no feature
-    "weather_temp",  # solo 0.2% cobertura; no hay dato retroactivo
+    "weather_condition", "weather_wind",  # texto raw; reemplazados por weather_temp, wind_speed_mph, wind_effect_runs
     "park_factor_hr", "park_factor_hr_vs_l", "park_factor_hr_vs_r",  # no mejoró métrica en val (2024)
     "home_score_f5", "away_score_f5", "total_runs_f5", "home_win_f5", "nrfi",
     TARGET_WIN, TARGET_RUNS,

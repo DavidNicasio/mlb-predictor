@@ -45,3 +45,16 @@ def test_parse_teams():
     assert len(rows) == 1
     assert rows[0]["team_id"] == 532
     assert rows[0]["league"] == "LMB"
+
+
+def test_weather_parser():
+    import weather_parser
+    parsed = weather_parser.parse_weather_features(85, "15 mph, Out To CF")
+    assert parsed["weather_temp"] == 85.0
+    assert parsed["wind_speed_mph"] == 15.0
+    assert parsed["wind_dir_dummy"] == 1.0
+    assert parsed["wind_effect_runs"] == 15.0
+
+    parsed_in = weather_parser.parse_weather_features(65, "10 mph, In From LF")
+    assert parsed_in["wind_dir_dummy"] == -1.0
+    assert parsed_in["wind_effect_runs"] == -10.0
