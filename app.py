@@ -697,7 +697,9 @@ class MLBPredictorApp(ctk.CTk):
             cell0.grid(row=0, column=0, sticky="nsew", padx=6, pady=6)
 
             time_str = pdf_generator._format_game_time(r.get("game_date_utc")).replace("<font color='#64748b'><b>", "").replace("</b></font><br/>", "")
-            ctk.CTkLabel(cell0, text=time_str or "⏰ Sin hora", font=ctk.CTkFont(size=11), text_color=("#64748b", "#94a3b8")).pack(anchor="w")
+            stage_txt = "⚡ Lineup Confirmado" if r.get("prediction_stage") == "lineup_confirmed" else "📅 Matutina"
+            stage_clr = "#22c55e" if r.get("prediction_stage") == "lineup_confirmed" else "#64748b"
+            ctk.CTkLabel(cell0, text=f"{time_str or '⏰ Sin hora'}  •  {stage_txt}", font=ctk.CTkFont(size=11, weight="bold"), text_color=stage_clr).pack(anchor="w")
 
             away_sub = ctk.CTkFrame(cell0, fg_color="transparent")
             away_sub.pack(anchor="w")
@@ -798,7 +800,9 @@ class MLBPredictorApp(ctk.CTk):
         header_sub.pack(fill="x", padx=12, pady=(8, 4))
 
         time_str = pdf_generator._format_game_time(r.get("game_date_utc")).replace("<font color='#64748b'><b>", "").replace("</b></font><br/>", "")
-        lbl_time = ctk.CTkLabel(header_sub, text=time_str or "⏰ Horario pendiente", font=ctk.CTkFont(size=12, weight="bold"), text_color="#94a3b8")
+        stage_txt = "⚡ Lineup Confirmado" if r.get("prediction_stage") == "lineup_confirmed" else "📅 Matutina"
+        stage_clr = "#22c55e" if r.get("prediction_stage") == "lineup_confirmed" else "#64748b"
+        lbl_time = ctk.CTkLabel(header_sub, text=f"{time_str or '⏰ Horario pendiente'}  •  {stage_txt}", font=ctk.CTkFont(size=11, weight="bold"), text_color=stage_clr)
         lbl_time.pack(side="left")
 
         lbl_risk_badge = ctk.CTkLabel(

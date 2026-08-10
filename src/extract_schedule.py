@@ -161,12 +161,16 @@ def parse_boxscore(boxscore_json: dict, game_pk: int) -> tuple[list[dict], list[
 
             batting = stats.get("batting", {})
             if batting.get("atBats") is not None or batting.get("plateAppearances"):
+                border_raw = pdata.get("battingOrder")
+                border_val = int(border_raw) if border_raw and str(border_raw).isdigit() else None
+
                 batting_rows.append({
                     "game_pk": game_pk,
                     "team_id": team_id,
                     "player_id": player_id,
                     "player_name": person.get("fullName"),
                     "bats": pdata.get("batSide", {}).get("code"),
+                    "batting_order": border_val,
                     "ab": batting.get("atBats"),
                     "h": batting.get("hits"),
                     "doubles": batting.get("doubles"),
@@ -237,9 +241,9 @@ def upsert_probables(conn, rows: list[dict]) -> None:
 def upsert_batting(conn, rows: list[dict]) -> None:
     conn.executemany(
         """INSERT OR REPLACE INTO boxscore_batting
-           (game_pk, team_id, player_id, player_name, bats, ab, h, doubles,
+           (game_pk, team_id, player_id, player_name, bats, batting_order, ab, h, doubles,
             triples, hr, bb, ibb, hbp, sf, so, sb, cs)
-           VALUES (:game_pk, :team_id, :player_id, :player_name, :bats, :ab,
+           VALUES (:game_pk, :team_id, :player_id, :player_name, :bats, :batting_order, :ab,
                    :h, :doubles, :triples, :hr, :bb, :ibb, :hbp, :sf, :so,
                    :sb, :cs)""",
         rows,

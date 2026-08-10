@@ -33,7 +33,8 @@ def fetch_predictions_with_results(
                 ht.name AS home_name, at.name AS away_name,
                 ht.abbreviation AS home_abbr, at.abbreviation AS away_abbr,
                 ht.team_id AS home_team_id, at.team_id AS away_team_id,
-                p.home_win_proba, p.total_runs_pred, p.predicted_at
+                p.home_win_proba, p.total_runs_pred, p.predicted_at,
+                COALESCE(p.prediction_stage, 'pregame_team_avg') AS prediction_stage
             FROM games g
                      JOIN teams ht ON ht.team_id = g.home_team_id
                      JOIN teams at ON at.team_id = g.away_team_id

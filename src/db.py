@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS boxscore_batting (
     player_id       INTEGER NOT NULL,
     player_name     TEXT,
     bats            TEXT,               -- L, R, S
+    batting_order   INTEGER,            -- 100, 200... 900 (1 al 9)
     ab              INTEGER, h INTEGER, doubles INTEGER, triples INTEGER,
     hr              INTEGER, bb INTEGER, ibb INTEGER, hbp INTEGER,
     sf INTEGER, so INTEGER, sb INTEGER, cs INTEGER,
@@ -211,7 +212,11 @@ def init_db(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE teams ADD COLUMN league TEXT DEFAULT 'MLB';")
     except sqlite3.OperationalError:
         pass
-    for col, ctype in [("weather_temp", "INTEGER"), ("weather_wind", "TEXT")]:
+    try:
+        conn.execute("ALTER TABLE boxscore_batting ADD COLUMN batting_order INTEGER;")
+    except sqlite3.OperationalError:
+        pass
+    for col, ctype in [("weather_temp", "INTEGER"), ("weather_wind", "TEXT"), ("prediction_stage", "TEXT DEFAULT 'pregame_team_avg'")]:
         try:
             conn.execute(f"ALTER TABLE predictions_log ADD COLUMN {col} {ctype};")
         except sqlite3.OperationalError:

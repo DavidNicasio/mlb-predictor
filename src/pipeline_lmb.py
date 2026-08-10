@@ -103,11 +103,7 @@ def run(db_path: str = "data/lmb.db", target_date: str | None = None, days_back:
                 print(f"  ... {i}/{len(unfetched)} boxscores procesados")
 
     # 4. Bio de Jugadores LMB (Mano bateador/lanzador)
-    unfetched_players = extract_players.get_unfetched_player_ids(conn)
-    if unfetched_players:
-        print(f"Actualizando bios para {len(unfetched_players)} jugadores LMB...")
-        bios = extract_players.fetch_players_chunked(unfetched_players)
-        extract_players.save_players(conn, bios)
+    extract_players.run(conn)
 
     conn.close()
     print("Pipeline LMB finalizado exitosamente.")

@@ -45,7 +45,7 @@ def test_lmb_models_training(tmp_path):
 
     # Insertar partido de prueba
     conn.execute("""
-        INSERT INTO games (game_pk, game_date, season, status, home_team_id, away_team_id, home_score, away_score, league)
+        INSERT OR REPLACE INTO games (game_pk, game_date, season, status, home_team_id, away_team_id, home_score, away_score, league)
         VALUES (770237, '2024-05-01', 2024, 'Final', 501, 500, 8, 3, 'LMB')
     """)
     conn.commit()
