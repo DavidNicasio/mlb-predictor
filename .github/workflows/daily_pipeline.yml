@@ -36,11 +36,11 @@ jobs:
       - name: Generar predicciones y calificar resultados del día
         working-directory: src
         run: |
-          mkdir -p ../predictions
+          mkdir -p ../predictions ../reports
           python report_card.py --db-path ../data/mlb_recent.db
           python predict_today.py --db-path ../data/mlb_recent.db --league MLB | tee "../predictions/mlb_$(date -u +'%Y-%m-%d').txt"
 
-      - name: Commit y push de la base y predicciones actualizadas
+      - name: Commit y push de la base, reportes y predicciones actualizadas
         run: |
           git config user.name "mlb-pipeline-bot"
           git config user.email "actions@users.noreply.github.com"

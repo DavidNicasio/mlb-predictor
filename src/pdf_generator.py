@@ -12,6 +12,8 @@ from datetime import datetime, date
 from pathlib import Path
 import pandas as pd
 
+import config
+
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import landscape, letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet

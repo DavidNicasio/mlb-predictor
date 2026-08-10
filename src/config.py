@@ -22,3 +22,19 @@ FIP_GOOD_THRESHOLD: float = 3.65
 
 # Tamaño mínimo de muestra para dar confianza a una regla en el backtest
 MIN_PROP_SAMPLE_SIZE: int = 30
+
+# Tolerancia para considerar empate/Push en Over/Under carreras
+OU_TOL: float = 0.25
+
+# Umbrales de probabilidad del favorito para niveles de riesgo (Bajo / Medio / Alto)
+RISK_THRESHOLD_LOW: float = 0.62
+RISK_THRESHOLD_MEDIUM: float = 0.55
+
+# Proporción base de carreras e intervalos para F5 (Primeras 5 entradas)
+F5_BASE_RATIO: float = 0.55
+F5_MIN_RUNS_PRED: float = 2.5
+F5_MAX_RUNS_PRED: float = 8.0
+
+# Límites máximos de ajuste en retroalimentación continua (feedback_loop.py)
+FEEDBACK_MAX_RUNS_ADJ: float = 1.0
+FEEDBACK_MAX_PROBA_ADJ: float = 0.06

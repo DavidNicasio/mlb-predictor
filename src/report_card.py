@@ -13,10 +13,11 @@ from pathlib import Path
 
 import pandas as pd
 
+import config
 import db
 import pdf_generator
 
-OU_TOL = 0.25
+OU_TOL = config.OU_TOL
 
 
 def fetch_predictions_with_results(

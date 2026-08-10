@@ -17,6 +17,7 @@ Cambios respecto a la versión original:
 
 from __future__ import annotations
 
+import config
 import pandas as pd
 
 
@@ -141,7 +142,8 @@ def apply_feedback_corrections(df: pd.DataFrame, conn) -> pd.DataFrame:
 
         # Aplicar 50% del sesgo de la banda (conservador)
         if band_bias != 0.0:
-            adj = max(-0.06, min(0.06, band_bias * 0.5))
+            max_p = config.FEEDBACK_MAX_PROBA_ADJ
+            adj = max(-max_p, min(max_p, band_bias * 0.5))
             # Ajustar en la dirección del favorito
             if p >= 0.50:
                 df_corrected.at[idx, "home_win_proba"] = max(0.05, min(0.95, p + adj))
@@ -159,7 +161,8 @@ def apply_feedback_corrections(df: pd.DataFrame, conn) -> pd.DataFrame:
                 break
 
         if runs_bias != 0.0:
-            adj = max(-1.0, min(1.0, runs_bias * 0.5))
+            max_r = config.FEEDBACK_MAX_RUNS_ADJ
+            adj = max(-max_r, min(max_r, runs_bias * 0.5))
             df_corrected.at[idx, "total_runs_pred"] = runs_pred + adj
 
     return df_corrected

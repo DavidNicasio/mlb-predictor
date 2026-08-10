@@ -7,6 +7,8 @@ eliminando el impacto de los bullpens en las entradas finales.
 
 from __future__ import annotations
 
+import config
+
 
 def calculate_f5_projections(
     home_fip: float | None,
@@ -17,8 +19,8 @@ def calculate_f5_projections(
     home_win_proba: float,
 ) -> dict:
     """Calcula la probabilidad de victoria F5 y la línea de carreras totales F5."""
-    # Factor de proporción base de F5 (aproximadamente 55% de las carreras del partido completo)
-    base_f5_ratio = 0.55
+    # Factor de proporción base de F5 (aprox 55% de las carreras del partido completo)
+    base_f5_ratio = config.F5_BASE_RATIO
 
     # Ajuste por FIP de abridores (si los FIPs son muy bajos, F5 cae; si son altos, F5 sube)
     h_fip = home_fip if home_fip and home_fip > 0 else 4.20
@@ -27,7 +29,7 @@ def calculate_f5_projections(
     avg_fip = (h_fip + a_fip) / 2.0
     fip_factor = avg_fip / 4.20
 
-    f5_runs_pred = max(2.5, min(8.0, full_game_runs_pred * base_f5_ratio * fip_factor))
+    f5_runs_pred = max(config.F5_MIN_RUNS_PRED, min(config.F5_MAX_RUNS_PRED, full_game_runs_pred * base_f5_ratio * fip_factor))
 
     # Ajuste de ventaja en F5 para el abridor de mejor FIP
     fip_diff = a_fip - h_fip  # Positivo si el abridor local es mejor (menor FIP)
