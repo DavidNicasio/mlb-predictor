@@ -184,6 +184,7 @@ CREATE INDEX IF NOT EXISTS idx_bat_player ON boxscore_batting(player_id);
 CREATE INDEX IF NOT EXISTS idx_pitch_player ON boxscore_pitching(player_id);
 CREATE INDEX IF NOT EXISTS idx_statcast_date ON statcast_batted_balls(game_date);
 CREATE INDEX IF NOT EXISTS idx_statcast_pitcher ON statcast_batted_balls(pitcher_id, game_pk);
+CREATE INDEX IF NOT EXISTS idx_statcast_game_pk ON statcast_batted_balls(game_pk);
 CREATE INDEX IF NOT EXISTS idx_linescore_game ON game_linescore(game_pk);
 """
 
