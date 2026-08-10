@@ -137,8 +137,8 @@ def log_predictions(conn, df: pd.DataFrame, win_saved: dict, runs_saved: dict) -
         "predicted_at": now,
         "home_win_proba": float(r["home_win_proba"]),
         "total_runs_pred": float(r["total_runs_pred"]),
-        "win_model_type": win_saved["model_type"],
-        "runs_model_type": runs_saved["model_type"],
+        "win_model_type": win_saved.get("model_type", "LogisticRegression"),
+        "runs_model_type": runs_saved.get("model_type", "Ridge"),
         "weather_temp": int(r["weather_temp"]) if pd.notna(r.get("weather_temp")) else None,
         "weather_wind": str(r["weather_wind"]) if pd.notna(r.get("weather_wind")) else None,
     } for _, r in df.iterrows()]
@@ -155,12 +155,23 @@ def log_predictions(conn, df: pd.DataFrame, win_saved: dict, runs_saved: dict) -
 
 
 def run(target_date: str | None = None, db_path: str = "data/mlb.db",
-        win_model_path: str = "data/model_win.joblib",
-        runs_model_path: str = "data/model_runs.joblib",
+        win_model_path: str | None = None,
+        runs_model_path: str | None = None,
         pdf_output: str | None = None,
         league: str | None = None) -> pd.DataFrame:
     target_date = target_date or str(date.today())
-    prefix = f"predictions_{league.lower()}_" if league else "predictions_"
+
+    # Seleccionar modelos segun liga
+    if league == "LMB" or "lmb.db" in db_path:
+        win_model_path = win_model_path or "data/model_lmb_win.joblib"
+        runs_model_path = runs_model_path or "data/model_lmb_runs.joblib"
+        league = league or "LMB"
+    else:
+        win_model_path = win_model_path or "data/model_win.joblib"
+        runs_model_path = runs_model_path or "data/model_runs.joblib"
+        league = league or "MLB"
+
+    prefix = f"predictions_{league.lower()}_"
     pdf_output = pdf_output or f"reports/{prefix}{target_date}.pdf"
 
     conn = db.get_connection(db_path)

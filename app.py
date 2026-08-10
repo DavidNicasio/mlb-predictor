@@ -28,6 +28,7 @@ if str(SRC_DIR) not in sys.path:
 import db
 import pdf_generator
 import pipeline
+import pipeline_lmb
 import predict_today
 import report_card
 
@@ -409,7 +410,6 @@ class MLBPredictorApp(ctk.CTk):
             desc = "No se encontraron los archivos de modelos entrenados (ej. data/model_win.joblib).\n\nPor favor ejecuta el entrenamiento de los modelos antes de realizar predicciones."
         elif "no hay partidos" in err_lower or "empty schedule" in err_lower or "no games" in err_lower:
             title = "Sin Partidos Programados"
-            desc = "No se encontraron partidos programados en la API oficial para la fecha seleccionada."
         elif "mlb.db" in err_lower or "operationalerror" in err_lower or "database is locked" in err_lower:
             title = "Error de Base de Datos"
             desc = "No se pudo acceder a la base de datos local (data/mlb.db).\nAsegúrate de que ningún otro proceso esté utilizando el archivo."
@@ -424,13 +424,18 @@ class MLBPredictorApp(ctk.CTk):
 
         def task():
             try:
-                conn = db.get_connection("data/mlb.db")
+                db_path = "data/lmb.db" if self.selected_league == "LMB" else "data/mlb.db"
+                conn = db.get_connection(db_path)
                 db.init_db(conn)
-                pipeline.run("data/mlb.db", self.target_date)
                 conn.close()
 
+                if self.selected_league == "LMB":
+                    pipeline_lmb.run(db_path, self.target_date)
+                else:
+                    pipeline.run(db_path, self.target_date)
+
                 # Generar predicciones automáticamente para la fecha y liga actualizada
-                predict_today.run(target_date=self.target_date, db_path="data/mlb.db", league=self.selected_league)
+                predict_today.run(target_date=self.target_date, db_path=db_path, league=self.selected_league)
 
                 self.after(0, lambda: self._on_pipeline_success())
             except Exception as err:
@@ -449,18 +454,12 @@ class MLBPredictorApp(ctk.CTk):
         messagebox.showerror(title, desc)
 
     def _run_predict(self):
-        if self.selected_league == "LMB":
-            messagebox.showinfo(
-                "Módulo LMB",
-                "Las predicciones probabilísticas automáticas para la LMB están deshabilitadas por política del sistema hasta entrenar y validar un modelo específicamente con historial de la LMB."
-            )
-            return
-
         self._start_busy(f"⏳ Generando predicciones {self.selected_league} y PDF...")
 
         def task():
             try:
-                predict_today.run(target_date=self.target_date, db_path="data/mlb.db", league=self.selected_league)
+                db_path = "data/lmb.db" if self.selected_league == "LMB" else "data/mlb.db"
+                predict_today.run(target_date=self.target_date, db_path=db_path, league=self.selected_league)
                 self.after(0, lambda: self._on_predict_success())
             except Exception as err:
                 self.after(0, lambda: self._on_predict_error(str(err)))
@@ -482,7 +481,8 @@ class MLBPredictorApp(ctk.CTk):
 
         def task():
             try:
-                report_card.run(target_date=self.target_date, db_path="data/mlb.db")
+                db_path = "data/lmb.db" if self.selected_league == "LMB" else "data/mlb.db"
+                report_card.run(target_date=self.target_date, db_path=db_path, league=self.selected_league)
                 self.after(0, lambda: self._on_report_success())
             except Exception as err:
                 self.after(0, lambda: self._on_report_error(str(err)))
@@ -522,10 +522,11 @@ class MLBPredictorApp(ctk.CTk):
         for widget in self.scroll_games.winfo_children():
             widget.destroy()
 
-        conn = db.get_connection("data/mlb.db")
+        league = self.selected_league
+        db_path = "data/lmb.db" if league == "LMB" else "data/mlb.db"
+        conn = db.get_connection(db_path)
         db.init_db(conn)
 
-        league = self.selected_league
         try:
             raw_df = report_card.fetch_predictions_with_results(
                 conn, start_date=self.target_date, end_date=self.target_date,
@@ -533,8 +534,8 @@ class MLBPredictorApp(ctk.CTk):
             )
             df = report_card.compute_grades(raw_df)
 
-            # Si no hay predicciones guardadas aun en predictions_log pero sí hay partidos en games para la liga seleccionada, calcular en automático (solo MLB)
-            if df.empty and league == "MLB":
+            # Si no hay predicciones guardadas pero sí hay partidos en games para la liga seleccionada, calcular en automático
+            if df.empty:
                 n_games = conn.execute(
                     "SELECT COUNT(*) FROM games WHERE game_date=? AND COALESCE(league, 'MLB')=?",
                     (self.target_date, league)
@@ -542,8 +543,8 @@ class MLBPredictorApp(ctk.CTk):
 
                 if n_games > 0:
                     conn.close()
-                    predict_today.run(target_date=self.target_date, db_path="data/mlb.db", league=league)
-                    conn = db.get_connection("data/mlb.db")
+                    predict_today.run(target_date=self.target_date, db_path=db_path, league=league)
+                    conn = db.get_connection(db_path)
                     raw_df = report_card.fetch_predictions_with_results(
                         conn, start_date=self.target_date, end_date=self.target_date,
                         include_pending=True, league=league

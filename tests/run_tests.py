@@ -8,6 +8,7 @@ from test_pipeline_and_models import test_config_constants, test_init_db_schema,
 from test_metrics import test_fip_formula, test_woba_formula, test_shrink_rate
 from test_report_card import test_compute_grades_final_and_pending
 from test_features_f5 import test_calculate_f5_projections_bounds_and_nones
+from test_lmb_pipeline import test_parse_lmb_games, test_lmb_models_training
 
 class TestMLB(unittest.TestCase):
     def test_config(self):
@@ -32,6 +33,10 @@ class TestMLB(unittest.TestCase):
 
     def test_f5_projections(self):
         test_calculate_f5_projections_bounds_and_nones()
+
+    def test_lmb_module(self):
+        test_parse_lmb_games()
+        test_lmb_models_training(Path("scratch"))
 
 if __name__ == "__main__":
     unittest.main()
