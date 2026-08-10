@@ -8,6 +8,7 @@ filtros de riesgo para apuestas y pestañas de Liga (MLB / LMB).
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import threading
@@ -34,6 +35,7 @@ ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
 
 LOGOS_DIR = Path(__file__).parent / "assets" / "logos"
+APP_STATE_PATH = Path(__file__).parent / ".app_state.json"
 
 
 class MLBPredictorApp(ctk.CTk):
@@ -46,15 +48,52 @@ class MLBPredictorApp(ctk.CTk):
 
         self.target_date = str(date.today())
         self.selected_league = "MLB"
-        self.risk_filter = "TODOS"
-        self.view_mode = "TABLA"  # "TABLA" (Estilo PDF) o "TARJETAS"
         self.search_query = ""
+
+        # Cargar preferencias guardadas (.app_state.json)
+        self._load_app_state()
+
+        # Aplicar el tema configurado
+        self._apply_theme_setting(self.theme_pref)
 
         # Caché de imágenes de escudos
         self._logo_images: dict[str, ctk.CTkImage] = {}
 
         self._create_layout()
+        self._update_header_stats()
         self._load_day_summary()
+
+    def _load_app_state(self):
+        self.theme_pref = "🌙 Oscuro"
+        self.view_mode = "TABLA"
+        self.risk_filter = "TODOS"
+        if APP_STATE_PATH.exists():
+            try:
+                with open(APP_STATE_PATH, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    self.theme_pref = data.get("theme", "🌙 Oscuro")
+                    self.view_mode = data.get("view_mode", "TABLA")
+                    self.risk_filter = data.get("risk_filter", "TODOS")
+            except Exception:
+                pass
+
+    def _save_app_state(self):
+        try:
+            data = {
+                "theme": self.theme_pref,
+                "view_mode": self.view_mode,
+                "risk_filter": self.risk_filter,
+            }
+            with open(APP_STATE_PATH, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+
+    def _apply_theme_setting(self, val: str):
+        if "Claro" in val:
+            ctk.set_appearance_mode("Light")
+        else:
+            ctk.set_appearance_mode("Dark")
 
     def _get_team_logo(self, abbr: str | None, team_id: int | None = None, size: tuple[int, int] = (22, 22)) -> ctk.CTkImage | None:
         """Carga y aplica caché a las imágenes PNG de los equipos."""
@@ -77,6 +116,29 @@ class MLBPredictorApp(ctk.CTk):
             except Exception:
                 pass
         return None
+
+    def _update_header_stats(self):
+        """Muestra el número de aciertos acumulados reales en el header."""
+        def task():
+            try:
+                conn = db.get_connection("data/mlb.db")
+                db.init_db(conn)
+                raw_df = report_card.fetch_predictions_with_results(conn, include_pending=False)
+                conn.close()
+                summary = report_card.summarize(raw_df)
+                win_hits = summary.get("win_hits", 0)
+                win_total = summary.get("win_total", 0)
+                win_acc = summary.get("win_acc", 0.0)
+                if win_total > 0:
+                    txt = f"🏆 Aciertos MLB: {win_hits}/{win_total} · {win_acc:.1f}%"
+                else:
+                    txt = "🏆 Aciertos MLB: Sin historial evaluado"
+            except Exception:
+                txt = "🏆 Aciertos MLB: --"
+
+            self.after(0, lambda: self.lbl_stats_summary.configure(text=txt))
+
+        threading.Thread(target=task, daemon=True).start()
 
     def _create_layout(self):
         # 1. Header Frame
@@ -102,7 +164,15 @@ class MLBPredictorApp(ctk.CTk):
         )
         lbl_sub.pack(anchor="w")
 
-        # Control de Tema (Modo Claro / Modo Oscuro) y Estado a la derecha
+        self.lbl_stats_summary = ctk.CTkLabel(
+            title_subframe,
+            text="🏆 Aciertos MLB: Cargando...",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color="#d97706",
+        )
+        self.lbl_stats_summary.pack(anchor="w", pady=(2, 0))
+
+        # Control de Tema (Modo Claro / Modo Oscuro), Barra de Progreso y Estado
         right_header = ctk.CTkFrame(self.header_frame, fg_color="transparent")
         right_header.pack(side="right", padx=15, pady=10)
 
@@ -112,7 +182,7 @@ class MLBPredictorApp(ctk.CTk):
             command=self._on_theme_change,
             width=130,
         )
-        self.seg_theme.set("🌙 Oscuro")
+        self.seg_theme.set(self.theme_pref)
         self.seg_theme.pack(anchor="e", pady=(0, 4))
 
         self.status_label = ctk.CTkLabel(
@@ -122,6 +192,10 @@ class MLBPredictorApp(ctk.CTk):
             text_color="#0284c7",
         )
         self.status_label.pack(anchor="e")
+
+        self.progress_bar = ctk.CTkProgressBar(right_header, width=180, height=6, mode="indeterminate", progress_color="#0284c7")
+        self.progress_bar.pack(anchor="e", pady=(4, 0))
+        self.progress_bar.pack_forget()
 
         # 2. Pestañas de Selección de Liga
         self.tab_view = ctk.CTkTabview(self, height=42, command=self._on_league_change)
@@ -253,10 +327,9 @@ class MLBPredictorApp(ctk.CTk):
 
     # --- Handlers & Theme ---
     def _on_theme_change(self, val: str):
-        if "Claro" in val:
-            ctk.set_appearance_mode("Light")
-        else:
-            ctk.set_appearance_mode("Dark")
+        self.theme_pref = val
+        self._apply_theme_setting(val)
+        self._save_app_state()
 
     def _on_league_change(self):
         tab = self.tab_view.get()
@@ -271,6 +344,7 @@ class MLBPredictorApp(ctk.CTk):
             self.view_mode = "TABLA"
         else:
             self.view_mode = "TARJETAS"
+        self._save_app_state()
         self._load_day_summary()
 
     def _set_date(self, new_date: str):
@@ -294,7 +368,15 @@ class MLBPredictorApp(ctk.CTk):
             self._set_date(val)
 
     def _on_risk_filter_change(self, val: str):
-        self.risk_filter = val
+        if "BAJO" in val:
+            self.risk_filter = "BAJO"
+        elif "MEDIO" in val:
+            self.risk_filter = "MEDIO"
+        elif "ALTO" in val:
+            self.risk_filter = "ALTO"
+        else:
+            self.risk_filter = "TODOS"
+        self._save_app_state()
         self._load_day_summary()
 
     def _on_search_change(self, event=None):
@@ -304,10 +386,41 @@ class MLBPredictorApp(ctk.CTk):
     def _update_status(self, msg: str):
         self.status_label.configure(text=msg)
 
+    def _start_busy(self, status_msg: str):
+        self.btn_pipeline.configure(state="disabled")
+        self.btn_predict.configure(state="disabled")
+        self.btn_report.configure(state="disabled")
+        self.status_label.configure(text=status_msg)
+        self.progress_bar.pack(anchor="e", pady=(4, 0))
+        self.progress_bar.start()
+
+    def _stop_busy(self, status_msg: str):
+        self.btn_pipeline.configure(state="normal")
+        self.btn_predict.configure(state="normal")
+        self.btn_report.configure(state="normal")
+        self.status_label.configure(text=status_msg)
+        self.progress_bar.stop()
+        self.progress_bar.pack_forget()
+
+    def _format_error_message(self, err_msg: str) -> tuple[str, str]:
+        err_lower = err_msg.lower()
+        if "model_win.joblib" in err_lower or "model_runs.joblib" in err_lower or ("file not found" in err_lower and "model" in err_lower):
+            title = "Modelo no Encontrado"
+            desc = "No se encontraron los archivos de modelos entrenados (ej. data/model_win.joblib).\n\nPor favor ejecuta el entrenamiento de los modelos antes de realizar predicciones."
+        elif "no hay partidos" in err_lower or "empty schedule" in err_lower or "no games" in err_lower:
+            title = "Sin Partidos Programados"
+            desc = "No se encontraron partidos programados en la API oficial para la fecha seleccionada."
+        elif "mlb.db" in err_lower or "operationalerror" in err_lower or "database is locked" in err_lower:
+            title = "Error de Base de Datos"
+            desc = "No se pudo acceder a la base de datos local (data/mlb.db).\nAsegúrate de que ningún otro proceso esté utilizando el archivo."
+        else:
+            title = "Error de Ejecución"
+            desc = f"Ocurrió un detalle durante la ejecución:\n\n{err_msg}"
+        return title, desc
+
     # --- Worker Threads ---
     def _run_pipeline_thread(self):
-        self.btn_pipeline.configure(state="disabled")
-        self._update_status(f"⏳ Actualizando datos {self.selected_league} y calculando predicciones...")
+        self._start_busy(f"⏳ Actualizando datos {self.selected_league} y calculando predicciones...")
 
         def task():
             try:
@@ -326,14 +439,14 @@ class MLBPredictorApp(ctk.CTk):
         threading.Thread(target=task, daemon=True).start()
 
     def _on_pipeline_success(self):
-        self.btn_pipeline.configure(state="normal")
-        self._update_status("🟢 Datos y predicciones actualizados correctamente")
+        self._stop_busy("🟢 Datos y predicciones actualizados correctamente")
+        self._update_header_stats()
         self._load_day_summary()
 
     def _on_pipeline_error(self, err_msg: str):
-        self.btn_pipeline.configure(state="normal")
-        self._update_status("🔴 Error actualizando datos")
-        messagebox.showerror("Error Pipeline", f"No se pudieron actualizar los datos:\n{err_msg}")
+        self._stop_busy("🔴 Error actualizando datos")
+        title, desc = self._format_error_message(err_msg)
+        messagebox.showerror(title, desc)
 
     def _run_predict(self):
         if self.selected_league == "LMB":
@@ -343,8 +456,7 @@ class MLBPredictorApp(ctk.CTk):
             )
             return
 
-        self.btn_predict.configure(state="disabled")
-        self._update_status(f"⏳ Generando predicciones {self.selected_league} y PDF...")
+        self._start_busy(f"⏳ Generando predicciones {self.selected_league} y PDF...")
 
         def task():
             try:
@@ -356,19 +468,17 @@ class MLBPredictorApp(ctk.CTk):
         threading.Thread(target=task, daemon=True).start()
 
     def _on_predict_success(self):
-        self.btn_predict.configure(state="normal")
-        self._update_status("🟢 Predicciones y PDF generados")
+        self._stop_busy("🟢 Predicciones y PDF generados")
         self._load_day_summary()
         self._open_predictions_pdf()
 
     def _on_predict_error(self, err_msg: str):
-        self.btn_predict.configure(state="normal")
-        self._update_status("🔴 Error en predicciones")
-        messagebox.showerror("Error Predicciones", err_msg)
+        self._stop_busy("🔴 Error en predicciones")
+        title, desc = self._format_error_message(err_msg)
+        messagebox.showerror(title, desc)
 
     def _run_report(self):
-        self.btn_report.configure(state="disabled")
-        self._update_status("⏳ Calificando resultados y generando PDF...")
+        self._start_busy("⏳ Calificando resultados y generando PDF...")
 
         def task():
             try:
@@ -380,15 +490,15 @@ class MLBPredictorApp(ctk.CTk):
         threading.Thread(target=task, daemon=True).start()
 
     def _on_report_success(self):
-        self.btn_report.configure(state="normal")
-        self._update_status("🟢 Report Card generado")
+        self._stop_busy("🟢 Report Card generado")
+        self._update_header_stats()
         self._load_day_summary()
         self._open_report_pdf()
 
     def _on_report_error(self, err_msg: str):
-        self.btn_report.configure(state="normal")
-        self._update_status("🔴 Error en Report Card")
-        messagebox.showerror("Error Report Card", err_msg)
+        self._stop_busy("🔴 Error en Report Card")
+        title, desc = self._format_error_message(err_msg)
+        messagebox.showerror(title, desc)
 
     def _open_pdf_file(self, pdf_path: str):
         p = Path(pdf_path)
@@ -445,6 +555,12 @@ class MLBPredictorApp(ctk.CTk):
         conn.close()
 
         if df.empty:
+            val_todos = "TODOS (0)"
+            val_bajo = "🟢 BAJO (0)"
+            val_medio = "🔵 MEDIO (0)"
+            val_alto = "🔴 ALTO (0)"
+            self.segmented_risk.configure(values=[val_todos, val_bajo, val_medio, val_alto])
+            self.segmented_risk.set(val_todos)
             msg = (
                 f"🇲🇽 Liga Mexicana de Béisbol (LMB)\n\nExtracción de datos y partidos en vivo activada para la LMB.\n"
                 f"Las predicciones probabilísticas están deshabilitadas hasta contar con un modelo entrenado formalmente con historial de la LMB."
@@ -467,7 +583,12 @@ class MLBPredictorApp(ctk.CTk):
                 | df["away_name"].str.lower().str.contains(self.search_query)
             ]
 
-        # Filtrar por nivel de riesgo
+        # Calcular contadores por nivel de riesgo para la botonera
+        cnt_todos = len(df)
+        cnt_bajo = 0
+        cnt_medio = 0
+        cnt_alto = 0
+
         filtered_rows = []
         for _, r in df.iterrows():
             proba = float(r["home_win_proba"])
@@ -476,22 +597,40 @@ class MLBPredictorApp(ctk.CTk):
             if fav_p >= 0.62:
                 risk_tag = "BAJO"
                 risk_color = "#22c55e"
+                cnt_bajo += 1
             elif fav_p >= 0.55:
                 risk_tag = "MEDIO"
                 risk_color = "#0284c7"
+                cnt_medio += 1
             else:
                 risk_tag = "ALTO"
                 risk_color = "#ef4444"
+                cnt_alto += 1
 
             if self.risk_filter != "TODOS":
-                if "BAJO" in self.risk_filter and risk_tag != "BAJO":
+                if self.risk_filter == "BAJO" and risk_tag != "BAJO":
                     continue
-                if "MEDIO" in self.risk_filter and risk_tag != "MEDIO":
+                if self.risk_filter == "MEDIO" and risk_tag != "MEDIO":
                     continue
-                if "ALTO" in self.risk_filter and risk_tag != "ALTO":
+                if self.risk_filter == "ALTO" and risk_tag != "ALTO":
                     continue
 
             filtered_rows.append((r, proba, fav_p, risk_tag, risk_color))
+
+        val_todos = f"TODOS ({cnt_todos})"
+        val_bajo = f"🟢 BAJO ({cnt_bajo})"
+        val_medio = f"🔵 MEDIO ({cnt_medio})"
+        val_alto = f"🔴 ALTO ({cnt_alto})"
+        self.segmented_risk.configure(values=[val_todos, val_bajo, val_medio, val_alto])
+
+        if self.risk_filter == "BAJO":
+            self.segmented_risk.set(val_bajo)
+        elif self.risk_filter == "MEDIO":
+            self.segmented_risk.set(val_medio)
+        elif self.risk_filter == "ALTO":
+            self.segmented_risk.set(val_alto)
+        else:
+            self.segmented_risk.set(val_todos)
 
         if not filtered_rows:
             lbl_empty_filter = ctk.CTkLabel(
