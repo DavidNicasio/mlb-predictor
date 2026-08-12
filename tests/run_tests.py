@@ -10,6 +10,7 @@ from test_report_card import test_compute_grades_final_and_pending
 from test_features_f5 import test_calculate_f5_projections_bounds_and_nones
 from test_lmb_pipeline import test_parse_lmb_games, test_lmb_models_training
 from test_features_lineup import test_lineup_woba_fallback_and_shrinkage
+from test_simulation_engine import test_monte_carlo_convergence, test_fatigue_and_statcast
 
 class TestMLB(unittest.TestCase):
     def test_config(self):
@@ -41,6 +42,10 @@ class TestMLB(unittest.TestCase):
 
     def test_lineup_module(self):
         test_lineup_woba_fallback_and_shrinkage(Path("scratch"))
+
+    def test_simulation_and_monte_carlo(self):
+        test_monte_carlo_convergence()
+        test_fatigue_and_statcast()
 
 if __name__ == "__main__":
     unittest.main()
