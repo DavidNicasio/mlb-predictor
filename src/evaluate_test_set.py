@@ -103,6 +103,14 @@ def run(dataset_path: str = "data/training_dataset.parquet",
         runs_model_path: str = "data/model_runs.joblib",
         reason: str = "Evaluación manual de modelos en test") -> None:
     df = md.load_dataset(dataset_path)
+    if "home_lineup_woba" not in df.columns:
+        import db
+        from train_lineup_models import prepare_dataset_with_lineups
+        conn = db.get_connection("data/mlb.db")
+        db.init_db(conn)
+        df = prepare_dataset_with_lineups(conn, dataset_path)
+        conn.close()
+
     _train, _val, test = md.temporal_split(df)
     print(f"Set de TEST (2025-2026): {len(test)} partidos -- evaluación registrada")
 

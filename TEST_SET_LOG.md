@@ -31,3 +31,12 @@ Regla estricta: El set de test solo se toca cuando una fase de modelado está te
 - **Resultados**:
   - **Victoria (Win)**: Accuracy = `0.5485` | Log-loss = `0.6861` | Brier = `0.2465`
   - **Carreras (Runs)**: MAE = `3.601` | RMSE = `4.527`
+
+---
+
+### Corrida (2026-08-12 00:59:51)
+- **Fecha**: 2026-08-12
+- **Motivo / Qué cambió**: Primera y única evaluación del modelo de alineación vespertino (Fase 5). El modelo matutino permanece sin cambios.
+- **Resultados**:
+  - **Victoria (Win)**: Accuracy = `0.5620` | Log-loss = `0.6842` | Brier = `0.2455`
+  - **Carreras (Runs)**: MAE = `3.564` | RMSE = `4.520`
