@@ -18,6 +18,7 @@ import tkinter as tk
 from tkinter import messagebox
 
 import customtkinter as ctk
+import pandas as pd
 from PIL import Image
 
 # Asegurar import de los módulos locales en src/
@@ -515,7 +516,8 @@ class MLBPredictorApp(ctk.CTk):
         self._open_pdf_file(f"reports/{prefix}{self.target_date}.pdf")
 
     def _open_report_pdf(self):
-        self._open_pdf_file(f"reports/report_{self.target_date}.pdf")
+        prefix = f"report_{self.selected_league.lower()}_" if self.selected_league != "MLB" else "report_"
+        self._open_pdf_file(f"reports/{prefix}{self.target_date}.pdf")
 
     # --- UI Rendering ---
     def _load_day_summary(self):

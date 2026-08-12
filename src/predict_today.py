@@ -56,6 +56,12 @@ def predict_games(conn, rows: list[dict], win_saved: dict, runs_saved: dict) -> 
     X_win = df.reindex(columns=win_saved["feature_names"])
     X_runs = df.reindex(columns=runs_saved["feature_names"])
 
+    # Imputar NaNs con 0.0 para modelos de scikit-learn como LogisticRegression / Ridge (LMB)
+    if X_win.isna().any().any():
+        X_win = X_win.fillna(0.0)
+    if X_runs.isna().any().any():
+        X_runs = X_runs.fillna(0.0)
+
     df["home_win_proba"] = win_saved["model"].predict_proba(X_win)[:, 1]
     df["total_runs_pred"] = runs_saved["model"].predict(X_runs)
 
