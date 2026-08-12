@@ -62,8 +62,8 @@ class MLBPredictorApp(ctk.CTk):
         self._logo_images: dict[str, ctk.CTkImage] = {}
 
         self._create_layout()
-        self._update_header_stats()
-        self._load_day_summary()
+        self.after(50, self._update_header_stats)
+        self.after(50, self._load_day_summary)
 
     def _load_app_state(self):
         self.theme_pref = "🌙 Oscuro"
@@ -129,16 +129,26 @@ class MLBPredictorApp(ctk.CTk):
                 conn.close()
                 summary = report_card.summarize(raw_df)
                 win_hits = summary.get("win_hits", 0)
-                win_total = summary.get("win_total", 0)
-                win_acc = summary.get("win_acc", 0.0)
+                win_total = summary.get("n_games", 0)
+                win_pct = summary.get("win_pct", 0.0)
                 if win_total > 0:
-                    txt = f"🏆 Aciertos MLB: {win_hits}/{win_total} · {win_acc:.1f}%"
+                    txt = f"🏆 Aciertos MLB: {win_hits}/{win_total} · {win_pct:.1f}%"
                 else:
                     txt = "🏆 Aciertos MLB: Sin historial evaluado"
             except Exception:
                 txt = "🏆 Aciertos MLB: --"
 
-            self.after(0, lambda: self.lbl_stats_summary.configure(text=txt))
+            def safe_update():
+                try:
+                    if hasattr(self, "lbl_stats_summary") and self.lbl_stats_summary:
+                        self.lbl_stats_summary.configure(text=txt)
+                except Exception:
+                    pass
+
+            try:
+                self.after(0, safe_update)
+            except RuntimeError:
+                pass
 
         threading.Thread(target=task, daemon=True).start()
 
