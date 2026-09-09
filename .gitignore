@@ -19,3 +19,6 @@ __pycache__/
 data/*.db
 src/data/*.db
 .app_state.json
+
+# Exception: allow lightweight recent database for GitHub Actions runner
+!data/mlb_recent.db

@@ -8,14 +8,18 @@ on:
   workflow_dispatch: {}   # permite correrlo manualmente desde la pestaña Actions
 
 permissions:
-  contents: write   # necesario para poder hacer commit de data/mlb.db de vuelta al repo
+  contents: write   # necesario para poder hacer commit de data/mlb_recent.db de vuelta al repo
 
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: src
     steps:
       - name: Checkout del repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Configurar Python
         uses: actions/setup-python@v5
@@ -26,24 +30,31 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Correr el pipeline diario
-        working-directory: src
-        run: python pipeline.py ../data/mlb_recent.db
+        run: python src/pipeline.py data/mlb_recent.db
 
       - name: Podar datos viejos (mantener la base chica)
-        working-directory: src
-        run: python export_recent_window.py --prune-only --dest ../data/mlb_recent.db --days 100
+        run: python src/export_recent_window.py --prune-only --dest data/mlb_recent.db --days 100
 
-      - name: Generar predicciones y calificar resultados del día
-        working-directory: src
+      - name: Generar reporte diario (calificar resultados pasados)
         run: |
-          mkdir -p ../predictions ../reports
-          python report_card.py --db-path ../data/mlb_recent.db
-          python predict_today.py --db-path ../data/mlb_recent.db --league MLB | tee "../predictions/mlb_$(date -u +'%Y-%m-%d').txt"
+          mkdir -p reports
+          python src/report_card.py --db-path data/mlb_recent.db
+
+      - name: Generar predicciones del día
+        run: |
+          mkdir -p predictions reports
+          python src/predict_today.py --db-path data/mlb_recent.db --league MLB | tee "predictions/mlb_$(date -u +'%Y-%m-%d').txt"
 
       - name: Commit y push de la base, reportes y predicciones actualizadas
         run: |
           git config user.name "mlb-pipeline-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add data/mlb_recent.db predictions/ reports/
-          git diff --staged --quiet || git commit -m "Actualización diaria de datos, report card y predicciones $(date -u +'%Y-%m-%d')"
-          git push
+          git add -f data/mlb_recent.db
+          git add -A predictions/ reports/
+          if ! git diff --staged --quiet; then
+            git commit -m "Actualización diaria de datos, report card y predicciones $(date -u +'%Y-%m-%d')"
+            git pull --rebase origin main || true
+            git push origin HEAD:main
+          else
+            echo "No hay cambios para commitear hoy."
+          fi

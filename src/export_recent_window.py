@@ -35,6 +35,17 @@ TABLES_BY_GAME_DATE = ["statcast_batted_balls"]
 TABLES_FULL = ["players", "teams", "league_constants", "park_factors"]
 
 
+def _copy_table(conn, table: str, where_clause: str = "", params: tuple = ()) -> int:
+    dest_cols = [r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()]
+    src_cols = [r[1] for r in conn.execute(f"PRAGMA src.table_info({table})").fetchall()]
+    common_cols = [c for c in dest_cols if c in src_cols]
+    col_list = ", ".join(f'"{c}"' for c in common_cols)
+    sql = f"INSERT INTO {table} ({col_list}) SELECT {col_list} FROM src.{table}"
+    if where_clause:
+        sql += f" WHERE {where_clause}"
+    return conn.execute(sql, params).rowcount
+
+
 def run(source_db: str = "data/mlb.db", dest_db: str = "data/mlb_recent.db",
         days: int = 100) -> None:
     cutoff = str(date.today() - timedelta(days=days))
@@ -46,26 +57,19 @@ def run(source_db: str = "data/mlb.db", dest_db: str = "data/mlb_recent.db",
     db.init_db(conn)
     conn.execute("ATTACH DATABASE ? AS src", (source_db,))
 
-    n_games = conn.execute(
-        "INSERT INTO games SELECT * FROM src.games WHERE game_date >= ?", (cutoff,)
-    ).rowcount
+    n_games = _copy_table(conn, "games", "game_date >= ?", (cutoff,))
     print(f"games: {n_games} filas (desde {cutoff})")
 
     for table in TABLES_BY_GAME_PK:
-        n = conn.execute(
-            f"""INSERT INTO {table} SELECT * FROM src.{table}
-                WHERE game_pk IN (SELECT game_pk FROM games)"""
-        ).rowcount
+        n = _copy_table(conn, table, "game_pk IN (SELECT game_pk FROM games)")
         print(f"{table}: {n} filas")
 
     for table in TABLES_BY_GAME_DATE:
-        n = conn.execute(
-            f"INSERT INTO {table} SELECT * FROM src.{table} WHERE game_date >= ?", (cutoff,)
-        ).rowcount
+        n = _copy_table(conn, table, "game_date >= ?", (cutoff,))
         print(f"{table}: {n} filas")
 
     for table in TABLES_FULL:
-        n = conn.execute(f"INSERT INTO {table} SELECT * FROM src.{table}").rowcount
+        n = _copy_table(conn, table)
         print(f"{table}: {n} filas (completa)")
 
     conn.commit()

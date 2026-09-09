@@ -21,6 +21,7 @@ from pathlib import Path
 import joblib
 import pandas as pd
 
+import config
 import db
 import features
 import pdf_generator
@@ -69,8 +70,8 @@ def predict_games(conn, rows: list[dict], win_saved: dict, runs_saved: dict) -> 
     df = feedback_loop.apply_feedback_corrections(df, conn)
 
     # Cargar modelos dedicados F5 si están disponibles
-    f5_runs_path = Path("data/model_f5_runs.joblib")
-    f5_win_path = Path("data/model_f5_win.joblib")
+    f5_runs_path = config.resolve_path("data/model_f5_runs.joblib")
+    f5_win_path = config.resolve_path("data/model_f5_win.joblib")
 
     if f5_runs_path.exists() and f5_win_path.exists():
         f5_r_saved = joblib.load(f5_runs_path)
@@ -184,8 +185,8 @@ def run(target_date: str | None = None, db_path: str = "data/mlb.db",
     db.init_db(conn)
 
     rows = features.build_features_for_date(conn, target_date, league=league)
-    win_saved = joblib.load(win_model_path)
-    runs_saved = joblib.load(runs_model_path)
+    win_saved = joblib.load(config.resolve_path(win_model_path))
+    runs_saved = joblib.load(config.resolve_path(runs_model_path))
 
     df = predict_games(conn, rows, win_saved, runs_saved)
     print_report(df, target_date)

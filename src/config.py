@@ -4,7 +4,22 @@ Centralización de rutas por defecto y umbrales de negocio (números mágicos)
 del sistema de predicciones de MLB / LMB.
 """
 
-from __future__ import annotations
+from pathlib import Path
+
+# Raíz del repositorio (un nivel arriba de src/)
+REPO_ROOT: Path = Path(__file__).resolve().parent.parent
+
+
+def resolve_path(rel_or_abs_path: str | Path) -> Path:
+    """Retorna Path del archivo buscando primero en CWD y luego en REPO_ROOT."""
+    p = Path(rel_or_abs_path)
+    if p.exists():
+        return p
+    repo_p = REPO_ROOT / rel_or_abs_path
+    if repo_p.exists():
+        return repo_p
+    return p
+
 
 # Rutas de base de datos y modelos por defecto
 DEFAULT_DB_PATH: str = "data/mlb.db"

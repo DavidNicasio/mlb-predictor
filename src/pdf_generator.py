@@ -28,7 +28,9 @@ from reportlab.platypus import (
     PageBreak,
 )
 
-LOGOS_DIR = Path("assets/logos")
+import config
+
+LOGOS_DIR = config.resolve_path("assets/logos")
 
 
 def _team_html(team_name: str, team_abbr: str | None = None, team_id: int | None = None) -> str:
