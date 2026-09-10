@@ -1,0 +1,38 @@
+[metrics] sin pesos de wOBA para 2026, uso los de 2025 como aproximación
+
+==============================================================================
+  Predicciones para 2026-09-10 (5 partido(s))
+==============================================================================
+
+  Houston Astros  @  Philadelphia Phillies
+    Probabilidad de victoria local: 65.6%   (favorito: Philadelphia Phillies a 65.6%)
+    Proyección Over/Under (carreras totales): 9.9
+    Abridor local (R): FIP 3.0, 8 aperturas recientes
+    Abridor visitante (R): FIP 4.19, 2 aperturas recientes
+
+  Tampa Bay Rays  @  Atlanta Braves
+    Probabilidad de victoria local: 41.9%   (favorito: Tampa Bay Rays a 58.1%)
+    Proyección Over/Under (carreras totales): 10.3
+    Abridor local (L): FIP 4.86, 8 aperturas recientes
+    Abridor visitante (R): FIP 4.8, 8 aperturas recientes
+
+  Colorado Rockies  @  New York Yankees
+    Probabilidad de victoria local: 55.7%   (favorito: New York Yankees a 55.7%)
+    Proyección Over/Under (carreras totales): 9.9
+    Abridor local (L): FIP 2.23, 5 aperturas recientes
+    Abridor visitante (R): FIP 6.55, 8 aperturas recientes
+
+  Texas Rangers  @  Seattle Mariners
+    Probabilidad de victoria local: 54.5%   (favorito: Seattle Mariners a 54.5%)
+    Proyección Over/Under (carreras totales): 9.1
+    Abridor local (R): FIP 2.97, 8 aperturas recientes
+    Abridor visitante (R): FIP 2.72, 8 aperturas recientes
+
+  Pittsburgh Pirates  @  Chicago White Sox
+    Probabilidad de victoria local: 49.9%   (favorito: Pittsburgh Pirates a 50.1%)
+    Proyección Over/Under (carreras totales): 9.6
+    Abridor local (nan): FIP nan, 0 aperturas recientes
+    Abridor visitante (R): FIP 3.26, 8 aperturas recientes
+
+(5 predicción(es) guardadas en predictions_log)
+Reporte PDF de predicciones generado en: reports/predictions_mlb_2026-09-10.pdf
