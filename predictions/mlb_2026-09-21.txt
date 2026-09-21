@@ -1,0 +1,26 @@
+[metrics] sin pesos de wOBA para 2026, uso los de 2025 como aproximación
+
+==============================================================================
+  Predicciones para 2026-09-21 (3 partido(s))
+==============================================================================
+
+  Minnesota Twins  @  San Francisco Giants
+    Probabilidad de victoria local: 58.1%   (favorito: San Francisco Giants a 58.1%)
+    Proyección Over/Under (carreras totales): 9.1
+    Abridor local (R): FIP 3.99, 4 aperturas recientes
+    Abridor visitante (R): FIP 5.32, 8 aperturas recientes
+
+  Washington Nationals  @  Detroit Tigers
+    Probabilidad de victoria local: 57.5%   (favorito: Detroit Tigers a 57.5%)
+    Proyección Over/Under (carreras totales): 9.2
+    Abridor local (R): FIP nan, 0 aperturas recientes
+    Abridor visitante (L): FIP nan, 0 aperturas recientes
+
+  Toronto Blue Jays  @  Baltimore Orioles
+    Probabilidad de victoria local: 54.2%   (favorito: Baltimore Orioles a 54.2%)
+    Proyección Over/Under (carreras totales): 9.0
+    Abridor local (R): FIP 3.23, 8 aperturas recientes
+    Abridor visitante (R): FIP 4.48, 8 aperturas recientes
+
+(3 predicción(es) guardadas en predictions_log)
+Reporte PDF de predicciones generado en: reports/predictions_mlb_2026-09-21.pdf
