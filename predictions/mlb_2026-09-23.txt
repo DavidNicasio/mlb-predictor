@@ -1,0 +1,104 @@
+[metrics] sin pesos de wOBA para 2026, uso los de 2025 como aproximación
+
+==============================================================================
+  Predicciones para 2026-09-23 (16 partido(s))
+==============================================================================
+
+  Cincinnati Reds  @  Atlanta Braves
+    Probabilidad de victoria local: 61.3%   (favorito: Atlanta Braves a 61.3%)
+    Proyección Over/Under (carreras totales): 8.7
+    Abridor local (L): FIP 1.85, 8 aperturas recientes
+    Abridor visitante (L): FIP 4.58, 8 aperturas recientes
+
+  Chicago White Sox  @  Kansas City Royals
+    Probabilidad de victoria local: 39.6%   (favorito: Chicago White Sox a 60.4%)
+    Proyección Over/Under (carreras totales): 9.2
+    Abridor local (R): FIP 5.42, 8 aperturas recientes
+    Abridor visitante (L): FIP 1.56, 2 aperturas recientes
+
+  Toronto Blue Jays  @  Baltimore Orioles
+    Probabilidad de victoria local: 58.9%   (favorito: Baltimore Orioles a 58.9%)
+    Proyección Over/Under (carreras totales): 8.8
+    Abridor local (R): FIP 3.31, 2 aperturas recientes
+    Abridor visitante (R): FIP 3.27, 5 aperturas recientes
+
+  St. Louis Cardinals  @  Pittsburgh Pirates
+    Probabilidad de victoria local: 58.4%   (favorito: Pittsburgh Pirates a 58.4%)
+    Proyección Over/Under (carreras totales): 9.3
+    Abridor local (R): FIP 3.56, 4 aperturas recientes
+    Abridor visitante (L): FIP 3.93, 8 aperturas recientes
+
+  San Diego Padres  @  Los Angeles Dodgers
+    Probabilidad de victoria local: 57.5%   (favorito: Los Angeles Dodgers a 57.5%)
+    Proyección Over/Under (carreras totales): 8.9
+    Abridor local (R): FIP 3.39, 8 aperturas recientes
+    Abridor visitante (L): FIP 4.38, 8 aperturas recientes
+
+  Arizona Diamondbacks  @  Colorado Rockies
+    Probabilidad de victoria local: 42.6%   (favorito: Arizona Diamondbacks a 57.4%)
+    Proyección Over/Under (carreras totales): 10.2
+    Abridor local (R): FIP 6.81, 2 aperturas recientes
+    Abridor visitante (R): FIP 4.31, 8 aperturas recientes
+
+  Houston Astros  @  Seattle Mariners
+    Probabilidad de victoria local: 57.3%   (favorito: Seattle Mariners a 57.3%)
+    Proyección Over/Under (carreras totales): 8.4
+    Abridor local (R): FIP 4.07, 8 aperturas recientes
+    Abridor visitante (R): FIP nan, 0 aperturas recientes
+
+  Tampa Bay Rays  @  New York Yankees
+    Probabilidad de victoria local: 57.0%   (favorito: New York Yankees a 57.0%)
+    Proyección Over/Under (carreras totales): 8.8
+    Abridor local (R): FIP 3.42, 8 aperturas recientes
+    Abridor visitante (R): FIP 7.27, 2 aperturas recientes
+
+  Toronto Blue Jays  @  Baltimore Orioles
+    Probabilidad de victoria local: 43.1%   (favorito: Toronto Blue Jays a 56.9%)
+    Proyección Over/Under (carreras totales): 8.6
+    Abridor local: sin confirmar todavía
+    Abridor visitante: sin confirmar todavía
+
+  Cleveland Guardians  @  Boston Red Sox
+    Probabilidad de victoria local: 56.7%   (favorito: Boston Red Sox a 56.7%)
+    Proyección Over/Under (carreras totales): 8.5
+    Abridor local (R): FIP 3.57, 8 aperturas recientes
+    Abridor visitante (L): FIP 4.05, 8 aperturas recientes
+
+  New York Mets  @  Texas Rangers
+    Probabilidad de victoria local: 44.0%   (favorito: New York Mets a 56.0%)
+    Proyección Over/Under (carreras totales): 7.9
+    Abridor local (L): FIP 3.06, 2 aperturas recientes
+    Abridor visitante (R): FIP 3.62, 8 aperturas recientes
+
+  Miami Marlins  @  Chicago Cubs
+    Probabilidad de victoria local: 55.6%   (favorito: Chicago Cubs a 55.6%)
+    Proyección Over/Under (carreras totales): 8.3
+    Abridor local (R): FIP 3.69, 8 aperturas recientes
+    Abridor visitante (R): FIP 4.33, 8 aperturas recientes
+
+  Los Angeles Angels  @  Athletics
+    Probabilidad de victoria local: 44.7%   (favorito: Los Angeles Angels a 55.3%)
+    Proyección Over/Under (carreras totales): 10.1
+    Abridor local (L): FIP 6.47, 8 aperturas recientes
+    Abridor visitante (R): FIP 2.73, 8 aperturas recientes
+
+  Minnesota Twins  @  San Francisco Giants
+    Probabilidad de victoria local: 44.7%   (favorito: Minnesota Twins a 55.3%)
+    Proyección Over/Under (carreras totales): 9.2
+    Abridor local (L): FIP 6.59, 2 aperturas recientes
+    Abridor visitante (L): FIP 3.53, 7 aperturas recientes
+
+  Milwaukee Brewers  @  Philadelphia Phillies
+    Probabilidad de victoria local: 45.1%   (favorito: Milwaukee Brewers a 54.9%)
+    Proyección Over/Under (carreras totales): 9.2
+    Abridor local (R): FIP 5.99, 8 aperturas recientes
+    Abridor visitante (R): FIP 3.86, 8 aperturas recientes
+
+  Washington Nationals  @  Detroit Tigers
+    Probabilidad de victoria local: 54.0%   (favorito: Detroit Tigers a 54.0%)
+    Proyección Over/Under (carreras totales): 8.5
+    Abridor local (L): FIP 3.76, 8 aperturas recientes
+    Abridor visitante (L): FIP nan, 0 aperturas recientes
+
+(16 predicción(es) guardadas en predictions_log)
+Reporte PDF de predicciones generado en: reports/predictions_mlb_2026-09-23.pdf
