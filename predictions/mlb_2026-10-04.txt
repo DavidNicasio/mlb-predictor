@@ -1,0 +1,20 @@
+[metrics] sin pesos de wOBA para 2026, uso los de 2025 como aproximación
+
+==============================================================================
+  Predicciones para 2026-10-04 (2 partido(s))
+==============================================================================
+
+  San Diego Padres  @  Milwaukee Brewers
+    Probabilidad de victoria local: 58.0%   (favorito: Milwaukee Brewers a 58.0%)
+    Proyección Over/Under (carreras totales): 8.0
+    Abridor local (R): FIP 3.98, 8 aperturas recientes
+    Abridor visitante (R): FIP 4.1, 8 aperturas recientes
+
+  Atlanta Braves  @  Los Angeles Dodgers
+    Probabilidad de victoria local: 54.8%   (favorito: Los Angeles Dodgers a 54.8%)
+    Proyección Over/Under (carreras totales): 8.0
+    Abridor local (L): FIP 1.37, 3 aperturas recientes
+    Abridor visitante: sin confirmar todavía
+
+(2 predicción(es) guardadas en predictions_log)
+Reporte PDF de predicciones generado en: reports/predictions_mlb_2026-10-04.pdf
