@@ -1,0 +1,32 @@
+[metrics] sin pesos de wOBA para 2026, uso los de 2025 como aproximación
+
+==============================================================================
+  Predicciones para 2026-10-07 (4 partido(s))
+==============================================================================
+
+  Tampa Bay Rays  @  New York Yankees
+    Probabilidad de victoria local: 60.1%   (favorito: New York Yankees a 60.1%)
+    Proyección Over/Under (carreras totales): 8.8
+    Abridor local (L): FIP 2.69, 8 aperturas recientes
+    Abridor visitante (R): FIP 4.18, 8 aperturas recientes
+
+  Cleveland Guardians  @  Chicago White Sox
+    Probabilidad de victoria local: 57.9%   (favorito: Chicago White Sox a 57.9%)
+    Proyección Over/Under (carreras totales): 8.1
+    Abridor local (L): FIP 0.89, 2 aperturas recientes
+    Abridor visitante (R): FIP 6.04, 3 aperturas recientes
+
+  Los Angeles Dodgers  @  Atlanta Braves
+    Probabilidad de victoria local: 43.9%   (favorito: Los Angeles Dodgers a 56.1%)
+    Proyección Over/Under (carreras totales): 8.3
+    Abridor local (R): FIP 3.37, 8 aperturas recientes
+    Abridor visitante (R): FIP 2.85, 3 aperturas recientes
+
+  Milwaukee Brewers  @  San Diego Padres
+    Probabilidad de victoria local: 44.2%   (favorito: Milwaukee Brewers a 55.8%)
+    Proyección Over/Under (carreras totales): 8.2
+    Abridor local (R): FIP 5.11, 8 aperturas recientes
+    Abridor visitante: sin confirmar todavía
+
+(4 predicción(es) guardadas en predictions_log)
+Reporte PDF de predicciones generado en: reports/predictions_mlb_2026-10-07.pdf
