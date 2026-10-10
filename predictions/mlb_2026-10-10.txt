@@ -1,0 +1,14 @@
+[metrics] sin pesos de wOBA para 2026, uso los de 2025 como aproximación
+
+==============================================================================
+  Predicciones para 2026-10-10 (1 partido(s))
+==============================================================================
+
+  Chicago White Sox  @  Cleveland Guardians
+    Probabilidad de victoria local: 61.0%   (favorito: Cleveland Guardians a 61.0%)
+    Proyección Over/Under (carreras totales): 8.6
+    Abridor local (R): FIP 2.17, 8 aperturas recientes
+    Abridor visitante (R): FIP 3.17, 8 aperturas recientes
+
+(1 predicción(es) guardadas en predictions_log)
+Reporte PDF de predicciones generado en: reports/predictions_mlb_2026-10-10.pdf
