@@ -1,0 +1,14 @@
+[metrics] sin pesos de wOBA para 2026, uso los de 2025 como aproximación
+
+==============================================================================
+  Predicciones para 2026-10-11 (1 partido(s))
+==============================================================================
+
+  Los Angeles Dodgers  @  Milwaukee Brewers
+    Probabilidad de victoria local: 55.8%   (favorito: Milwaukee Brewers a 55.8%)
+    Proyección Over/Under (carreras totales): 7.5
+    Abridor local (R): FIP 1.4, 8 aperturas recientes
+    Abridor visitante (L): FIP 3.04, 8 aperturas recientes
+
+(1 predicción(es) guardadas en predictions_log)
+Reporte PDF de predicciones generado en: reports/predictions_mlb_2026-10-11.pdf
