@@ -1,0 +1,20 @@
+[metrics] sin pesos de wOBA para 2026, uso los de 2025 como aproximación
+
+==============================================================================
+  Predicciones para 2026-10-12 (2 partido(s))
+==============================================================================
+
+  Cleveland Guardians  @  Tampa Bay Rays
+    Probabilidad de victoria local: 59.0%   (favorito: Tampa Bay Rays a 59.0%)
+    Proyección Over/Under (carreras totales): 7.9
+    Abridor local (R): FIP 1.46, 8 aperturas recientes
+    Abridor visitante (L): FIP 3.38, 8 aperturas recientes
+
+  Los Angeles Dodgers  @  Milwaukee Brewers
+    Probabilidad de victoria local: 43.2%   (favorito: Los Angeles Dodgers a 56.8%)
+    Proyección Over/Under (carreras totales): 8.0
+    Abridor local (R): FIP 3.96, 8 aperturas recientes
+    Abridor visitante (R): FIP 3.32, 8 aperturas recientes
+
+(2 predicción(es) guardadas en predictions_log)
+Reporte PDF de predicciones generado en: reports/predictions_mlb_2026-10-12.pdf
