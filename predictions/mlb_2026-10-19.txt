@@ -1,0 +1,14 @@
+[metrics] sin pesos de wOBA para 2026, uso los de 2025 como aproximación
+
+==============================================================================
+  Predicciones para 2026-10-19 (1 partido(s))
+==============================================================================
+
+  Cleveland Guardians  @  Tampa Bay Rays
+    Probabilidad de victoria local: 44.8%   (favorito: Cleveland Guardians a 55.2%)
+    Proyección Over/Under (carreras totales): 7.9
+    Abridor local (R): FIP 3.75, 8 aperturas recientes
+    Abridor visitante (R): FIP 1.02, 1 aperturas recientes
+
+(1 predicción(es) guardadas en predictions_log)
+Reporte PDF de predicciones generado en: reports/predictions_mlb_2026-10-19.pdf
