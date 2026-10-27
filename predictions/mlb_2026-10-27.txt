@@ -1,0 +1,14 @@
+[metrics] sin pesos de wOBA para 2026, uso los de 2025 como aproximación
+
+==============================================================================
+  Predicciones para 2026-10-27 (1 partido(s))
+==============================================================================
+
+  Milwaukee Brewers  @  Tampa Bay Rays
+    Probabilidad de victoria local: 43.0%   (favorito: Milwaukee Brewers a 57.0%)
+    Proyección Over/Under (carreras totales): 7.8
+    Abridor local (R): FIP 2.69, 8 aperturas recientes
+    Abridor visitante: sin confirmar todavía
+
+(1 predicción(es) guardadas en predictions_log)
+Reporte PDF de predicciones generado en: reports/predictions_mlb_2026-10-27.pdf
